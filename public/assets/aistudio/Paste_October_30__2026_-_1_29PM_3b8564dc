@@ -1,0 +1,1204 @@
+# MASTER PROMPT GOOGLE AI STUDIO
+# NETLAB — NETWORK TOPOLOGY & MIKROTIK SIMULATOR
+
+## 1. PERAN DAN MISI
+
+Bertindaklah sebagai Senior Software Architect, Senior Full-Stack Developer, Network Engineer, MikroTik RouterOS Specialist, Network Simulation Engineer, UI/UX Designer, Database Engineer, QA Engineer, dan Cybersecurity Engineer.
+
+Bangun aplikasi web bernama **NETLAB — Network Topology & MikroTik Simulator**, yaitu platform untuk merancang, mengonfigurasi, memvisualisasikan, dan menyimulasikan jaringan komputer secara interaktif sebelum implementasi ke infrastruktur fisik.
+
+Aplikasi harus memungkinkan pengguna membangun topologi jaringan melalui:
+
+1. Visual drag-and-drop topology designer.
+2. CLI berbasis perintah konfigurasi jaringan.
+3. Form konfigurasi perangkat.
+4. AI Network Assistant yang memahami instruksi bahasa Indonesia.
+5. Import dan export konfigurasi serta topologi.
+
+Semua metode konfigurasi harus menggunakan satu sumber data yang sama. Perubahan melalui CLI, form, atau AI harus memperbarui model topologi, konfigurasi perangkat, hasil validasi, dan status simulasi secara konsisten.
+
+Fokus utama adalah simulasi jaringan kampus dan enterprise, terutama penggunaan MikroTik RB, CCR, CRS, switch distribusi, modem ISP, fiber optic, VLAN, multi-WAN, routing, hotspot, server, access point, dan endpoint pengguna.
+
+**Jangan hanya membuat mockup dashboard. Bangun aplikasi interaktif dengan fungsi yang benar-benar berjalan, penyimpanan persisten, validasi konfigurasi, engine simulasi, dan pengujian otomatis.**
+
+---
+
+## 2. TUJUAN UTAMA APLIKASI
+
+Aplikasi harus mampu:
+
+- Membuat diagram topologi jaringan dari nol.
+- Menentukan model perangkat dan spesifikasi port yang realistis.
+- Menghubungkan perangkat berdasarkan interface fisik dan media koneksi.
+- Mendukung koneksi Ethernet dan fiber optic SFP/SFP+.
+- Mengatur bandwidth ISP, tipe layanan dedicated/shared, CIR, contention ratio, latency, dan parameter kualitas link.
+- Mengonfigurasi perangkat melalui CLI atau form.
+- Menghasilkan konfigurasi MikroTik RouterOS 6 dan RouterOS 7.
+- Menyimulasikan aliran paket, routing, VLAN, DHCP, NAT, firewall, QoS, serta kegagalan koneksi.
+- Menampilkan indikator status RUN, DEGRADED, DIE, DISABLED, dan UNKNOWN.
+- Menjelaskan penyebab setiap kegagalan berdasarkan bukti pemeriksaan.
+- Menampilkan trafik RX/TX, utilisasi, kapasitas, dan jalur paket.
+- Menyediakan event log, audit log, serta rekomendasi perbaikan.
+- Mengekspor diagram, laporan simulasi, inventaris perangkat, dan konfigurasi.
+- Menyediakan integrasi perangkat nyata pada tahap pengembangan lanjutan dengan persetujuan operator.
+
+## 3. STACK TEKNOLOGI
+
+Gunakan teknologi berikut sebagai pilihan utama:
+
+### Frontend
+- React.
+- TypeScript.
+- Vite.
+- Tailwind CSS.
+- shadcn/ui atau komponen UI setara.
+- React Flow untuk topology canvas.
+- Zustand untuk state management.
+- Zod untuk validasi skema.
+- Recharts untuk grafik trafik dan monitoring.
+- Monaco Editor untuk CLI editor, autocomplete, dan syntax highlighting.
+
+### Backend
+- Node.js.
+- TypeScript.
+- Express atau framework API setara.
+- REST API dengan validasi request.
+- WebSocket atau Server-Sent Events untuk pembaruan status dan trafik simulasi.
+- JSON file storage sebagai database awal.
+
+### Pengembangan lanjutan
+- PostgreSQL untuk database produksi.
+- Redis atau message queue jika dibutuhkan.
+- RouterOS API untuk integrasi MikroTik.
+- GNS3, EVE-NG, atau lingkungan virtual yang kompatibel untuk pengujian lebih realistis.
+- Docker Compose untuk deployment.
+
+Jika lingkungan AI Studio tidak menyediakan runtime backend persisten, tetap buat frontend dan engine simulasi lokal yang berfungsi. Pisahkan abstraksi penyimpanan dan API agar backend Node.js dapat dijalankan terpisah. Jangan mengklaim data telah tersimpan permanen jika hanya disimpan di memori browser.
+
+Buat README.md berisi persyaratan runtime, struktur folder, cara instalasi, cara menjalankan aplikasi, konfigurasi environment, dan prosedur deployment.
+
+---
+
+## 4. DESAIN UI/UX
+
+Buat antarmuka profesional bergaya Network Operations Center (NOC), modern, minimalis, responsif, dan cocok untuk penggunaan teknis UPT ICT.
+
+Gunakan dark mode sebagai tampilan utama, dengan opsi light mode.
+
+### Halaman aplikasi
+
+1. Dashboard.
+2. Network Projects.
+3. Topology Designer.
+4. Device Catalog.
+5. ISP & Bandwidth Manager.
+6. CLI Configuration.
+7. Simulation Lab.
+8. Traffic Monitoring.
+9. Diagnostics & Root Cause.
+10. Configuration Generator.
+11. Event Logs.
+12. Audit Logs.
+13. Export & Reports.
+14. AI Network Assistant.
+15. Settings & Device Templates.
+
+### Layout Topology Designer
+
+Buat tiga area utama:
+
+**Sidebar kiri**
+- Katalog perangkat.
+- Search device.
+- Filter kategori.
+- Template topologi.
+- Daftar interface.
+- Kabel dan media koneksi.
+
+**Kanvas tengah**
+- Drag-and-drop perangkat.
+- Menghubungkan port ke port.
+- Zoom, pan, minimap, dan fit-to-screen.
+- Pemilihan banyak perangkat.
+- Copy, paste, duplicate, delete.
+- Auto-layout.
+- Undo dan redo.
+- Animasi aliran trafik.
+- Indikator status pada node dan link.
+- Highlight jalur paket.
+- Menampilkan label interface dan kapasitas link.
+
+**Inspector kanan**
+- Device properties.
+- Interface configuration.
+- IP address dan VLAN.
+- Media dan transceiver.
+- Bandwidth serta trafik.
+- Status dan kesehatan perangkat.
+- Log serta diagnosis.
+- Konfigurasi CLI.
+- Rekomendasi perbaikan.
+
+**Panel bawah**
+- CLI terminal.
+- Validation output.
+- Simulation events.
+- Packet trace.
+- Diagnostics.
+- Error details.
+
+Semua panel harus fungsional dan terhubung ke state aplikasi yang sama.
+
+---
+
+## 5. DEVICE CATALOG
+
+Bangun katalog perangkat berbasis data, bukan hardcode pada komponen UI.
+
+### 5.1 MikroTik Router
+
+Kategori:
+- RB series.
+- CCR series.
+- Router virtual CHR.
+- Generic router.
+
+Contoh model yang dapat dimasukkan ke katalog awal:
+- RB750 series.
+- RB4011.
+- RB5009.
+- CCR1009.
+- CCR2004.
+- CCR2116.
+- CCR2216.
+- CHR.
+
+Setiap model harus memiliki atribut:
+- Vendor.
+- Model.
+- Kategori.
+- RouterOS version compatibility.
+- CPU dan RAM jika datanya tersedia.
+- Daftar interface.
+- Nama interface yang benar.
+- Jenis interface.
+- Kecepatan interface.
+- Dukungan SFP/SFP+.
+- Bridge, VLAN, routing, dan fitur relevan.
+- Sumber spesifikasi.
+- Status kelengkapan data katalog.
+
+Jangan mengarang spesifikasi perangkat. Model yang belum memiliki spesifikasi terverifikasi harus ditandai sebagai generic atau provisional.
+
+### 5.2 Switch
+
+Dukung:
+- MikroTik CRS series.
+- Managed switch.
+- Unmanaged switch.
+- Core switch.
+- Distribution switch.
+- Access switch.
+- PoE switch.
+- Generic switch.
+
+Fitur simulasi:
+- Access dan trunk port.
+- VLAN tagging.
+- PVID.
+- LACP.
+- STP/RSTP.
+- Port isolation.
+- MAC address learning.
+- Broadcast domain.
+- Port speed dan duplex jika relevan.
+
+### 5.3 Wireless
+
+Dukung:
+- MikroTik hAP, cAP, dan wAP.
+- Generic access point.
+- Wireless controller.
+- Client Wi-Fi.
+
+Properti:
+- SSID.
+- Security profile.
+- Frekuensi atau band.
+- VLAN per SSID.
+- Kapasitas koneksi.
+- Uplink interface.
+- PoE.
+- Wireless client association.
+
+### 5.4 End Devices
+
+Dukung:
+- Desktop PC.
+- Laptop.
+- Smartphone.
+- Printer.
+- IP camera.
+- Server.
+- VM.
+- Container.
+- NAS.
+- Hypervisor.
+- Generic endpoint.
+
+Properti:
+- MAC address.
+- IP address.
+- Subnet mask atau prefix.
+- Default gateway.
+- DNS.
+- DHCP/static.
+- VLAN.
+- Service yang berjalan.
+- Status koneksi.
+
+### 5.5 Perangkat WAN
+
+Dukung:
+- Modem ISP.
+- ONT/ONU.
+- Router ISP.
+- Starlink atau generic satellite modem.
+- Internet cloud.
+- PPPoE access.
+- DHCP WAN.
+- Static WAN.
+- Dedicated Internet Access.
+- Shared broadband.
+
+Perangkat WAN harus bisa dihubungkan ke router MikroTik melalui port yang sesuai.
+
+---
+
+## 6. INTERFACE DAN FIBER OPTIC ENGINE
+
+Ini merupakan fitur wajib.
+
+Setiap perangkat router, switch, dan perangkat distribusi harus mempunyai daftar interface berdasarkan model sebenarnya.
+
+### 6.1 Jenis interface
+
+- Ethernet.
+- SFP.
+- SFP+.
+- Port management.
+- Wireless.
+- Virtual interface.
+- VLAN interface.
+- Bridge interface.
+- Tunnel interface jika didukung simulator.
+
+### 6.2 Fiber optic
+
+Sediakan objek khusus untuk:
+- SFP transceiver.
+- SFP+ transceiver.
+- Single-mode fiber.
+- Multimode fiber.
+- LC, SC, dan konektor lain yang relevan.
+- Duplex dan BiDi sesuai dukungan perangkat.
+- Optical wavelength.
+- Transceiver speed.
+- Cable length.
+- Optical power dan attenuation opsional.
+- Link capacity.
+- Kompatibilitas perangkat.
+
+### 6.3 Aturan koneksi
+
+Sebuah link harus memiliki:
+- Source device ID.
+- Source interface ID.
+- Destination device ID.
+- Destination interface ID.
+- Media type.
+- Cable type.
+- Negotiated speed.
+- Administrative state.
+- Operational state.
+- Traffic profile.
+- Diagnostic state.
+
+Validasi:
+- Kedua endpoint tersedia.
+- Port tidak dipakai secara tidak valid oleh link lain.
+- Tipe media kompatibel.
+- Transceiver sesuai.
+- Kecepatan kedua ujung kompatibel.
+- Kabel sesuai dengan jenis interface.
+- Link tidak melanggar keterbatasan perangkat.
+
+Jangan menambahkan port SFP/SFP+ fiktif pada perangkat yang tidak memilikinya.
+
+Jika perangkat RB tidak mendukung fiber secara langsung, pengguna harus dapat memilih switch distribusi dengan SFP/SFP+ atau router dengan uplink optik yang sesuai.
+
+### 6.4 Simulasi kegagalan optik
+
+Sediakan skenario:
+- Transceiver tidak kompatibel.
+- Port dinonaktifkan.
+- Fiber terputus.
+- Optical loss terlalu tinggi.
+- Speed mismatch.
+- Endpoint tidak terhubung.
+- Link gagal karena parameter yang tidak sesuai.
+
+Diagnosis harus menjelaskan penyebab, bukti evaluasi, dampak, dan rekomendasi perbaikan.
+
+Jika simulator belum memiliki data yang cukup untuk memastikan penyebab, gunakan status suspected cause, bukan confirmed cause.
+
+---
+
+## 7. ISP & INTERNET MODEM SIMULATOR
+
+Bangun modul konfigurasi layanan internet.
+
+Setiap ISP harus memiliki:
+- Nama provider.
+- Service ID.
+- Tipe layanan.
+- Download bandwidth.
+- Upload bandwidth.
+- CIR download.
+- CIR upload.
+- Contention ratio.
+- Latency dasar.
+- Jitter.
+- Packet loss.
+- Kapasitas handoff/interface.
+- IP publik atau tipe IP.
+- Metode koneksi.
+- SLA opsional.
+- Biaya bulanan opsional.
+- Status koneksi.
+
+### 7.1 Tipe layanan
+
+A. Dedicated:
+- CIR ditentukan berdasarkan kontrak.
+- Bandwidth simetris atau asimetris.
+- Kapasitas nominal dan CIR dipisahkan.
+- Dapat mensimulasikan utilisasi dan congestion.
+
+B. Shared:
+- Bandwidth nominal.
+- Contention ratio.
+- Jumlah pengguna aktif.
+- Shared capacity pool opsional.
+- Traffic profile.
+- Estimasi throughput berdasarkan model pembagian kapasitas.
+
+C. Best effort:
+- Bandwidth maksimum.
+- Tidak menjanjikan CIR.
+- Throughput berdasarkan asumsi beban dan kapasitas bersama.
+
+### 7.2 Rasio layanan
+
+Dukung:
+- 1:1.
+- 1:2.
+- 1:4.
+- 1:8.
+- 1:10.
+- Custom ratio.
+
+Jangan otomatis mengartikan semua rasio sebagai CIR. Pisahkan definisi kontrak ISP dari model contention yang digunakan simulator.
+
+### 7.3 Perhitungan bandwidth
+
+Untuk model contention sederhana:
+
+Estimated fair-share throughput = min(
+  access capacity,
+  shared capacity / active users
+)
+
+Gunakan rumus tersebut hanya untuk mode simulasi fair-share yang secara eksplisit dipilih. Untuk model ISP dengan CIR, scheduler, atau kebijakan lain, gunakan model perhitungan terpisah.
+
+Tampilkan:
+- Nominal bandwidth.
+- CIR.
+- Estimated throughput.
+- Actual simulated throughput.
+- Utilization.
+- Packet loss.
+- Latency.
+- Congestion state.
+
+### 7.4 Multi-WAN
+
+Dukung:
+- DHCP client.
+- PPPoE.
+- Static WAN.
+- VLAN WAN.
+- NAT.
+- Failover.
+- Policy-based routing.
+- PCC load balancing.
+- WAN per VLAN.
+- WAN health check.
+
+Buat diagram WAN → modem → MikroTik → switch → VLAN → endpoint.
+
+---
+
+## 8. TOPOLOGY BUILDER
+
+Setiap project memiliki satu graph model terpusat.
+
+Model graph harus berisi:
+- Nodes.
+- Interfaces.
+- Edges.
+- Network segments.
+- VLANs.
+- IP subnets.
+- Routes.
+- Services.
+- Traffic policies.
+- Simulation configuration.
+
+Semua perubahan melalui CLI, form, dan AI harus diubah menjadi operasi terhadap graph model yang sama.
+
+### Fitur kanvas
+
+- Tambah perangkat.
+- Hapus perangkat.
+- Hubungkan dua port.
+- Putuskan link.
+- Pindahkan perangkat.
+- Ubah nama.
+- Duplicate.
+- Undo/redo.
+- Save/load.
+- Import/export.
+- Grouping.
+- Annotation.
+- VLAN color coding.
+- Link label.
+- Port label.
+- Highlight path.
+- Topology validation.
+
+### Jenis layout
+
+- Physical topology.
+- Logical topology.
+- VLAN topology.
+- WAN topology.
+- Routing topology.
+- Fiber optic topology.
+- Server/data center topology.
+
+---
+
+## 9. CLI CONFIGURATION ENGINE
+
+Buat CLI interaktif dengan:
+- Command history.
+- Autocomplete.
+- Syntax highlighting.
+- Error line.
+- Help.
+- Command discovery.
+- Validation output.
+- Tab completion jika memungkinkan.
+
+Gunakan dua mode CLI:
+
+### A. NETLAB CLI
+
+Contoh:
+
+device add router CCR2116 name=CORE
+device add switch CRS326 name=SW-CORE
+device add modem name=ISP-DEDICATED
+link add ISP-DEDICATED:ether1 CORE:ether1
+link add CORE:sfp-sfpplus1 SW-CORE:sfp-sfpplus1
+vlan add id=20 name=CIVITAS
+interface set CORE:ether1 mode=wan
+simulate validate
+simulate run
+diagnose all
+
+Sintaks di atas merupakan bahasa perintah NETLAB, bukan perintah RouterOS asli.
+
+### B. RouterOS CLI Generator
+
+Buat generator script RouterOS yang menghasilkan konfigurasi berdasarkan:
+- Versi RouterOS 6 atau 7.
+- Model perangkat.
+- Interface yang tersedia.
+- Topologi.
+- VLAN.
+- IP address.
+- Routing.
+- Firewall.
+- NAT.
+- DHCP.
+- Hotspot.
+- Multi-WAN.
+- QoS.
+
+Generator harus memiliki template versi yang terpisah dan validasi fitur.
+
+Sediakan:
+- Preview script.
+- Download `.rsc`.
+- Configuration diff.
+- Warning.
+- Backup guidance.
+- Rollback guidance.
+
+Jangan mengeksekusi input CLI sebagai shell command pada backend.
+
+---
+
+## 10. FORM CONFIGURATION ENGINE
+
+Setiap perangkat memiliki form dinamis berdasarkan jenis dan model.
+
+Form interface:
+- Interface name.
+- Interface type.
+- Admin status.
+- IP address.
+- VLAN.
+- Port mode.
+- Media.
+- Speed.
+- Duplex.
+- MTU.
+- DHCP client/server.
+- Routing.
+- Firewall.
+- Traffic profile.
+
+Form harus memvalidasi nilai dan memberikan penjelasan jika input tidak valid.
+
+Perubahan form harus langsung memperbarui graph model dan memicu validasi ulang.
+
+---
+
+## 11. LOGICAL NETWORK SIMULATION ENGINE
+
+Buat engine simulasi terpisah dari komponen React.
+
+Engine minimal harus mendukung:
+
+### Layer 1 — Physical
+- Port availability.
+- Cable connectivity.
+- Interface state.
+- Link capacity.
+- Media compatibility.
+- Fiber optic compatibility.
+- Link failure.
+
+### Layer 2 — Switching
+- MAC learning.
+- Frame forwarding.
+- VLAN tagging.
+- Access/trunk.
+- PVID.
+- Broadcast domain.
+- STP/RSTP basic model.
+- Link aggregation jika diimplementasikan.
+
+### Layer 3 — Routing
+- IPv4 addressing.
+- Subnet validation.
+- Connected routes.
+- Static routing.
+- Default route.
+- Longest-prefix matching.
+- Routing table.
+- Gateway reachability.
+- Policy routing sesuai dukungan engine.
+
+### Services
+- DHCP.
+- DNS simulation.
+- ARP.
+- ICMP ping.
+- Traceroute.
+- NAT.
+- Firewall/ACL.
+- Basic TCP/UDP flow.
+- QoS dan traffic shaping.
+
+Setiap fitur harus memiliki batas dukungan yang jelas. Jangan menampilkan hasil seolah-olah akurat jika fitur hanya berupa pendekatan sederhana.
+
+### Packet tracing
+
+Saat pengguna menjalankan ping atau simulasi trafik:
+1. Cari endpoint sumber.
+2. Periksa interface dan link.
+3. Evaluasi VLAN dan switching.
+4. Periksa IP/subnet dan gateway.
+5. Evaluasi routing.
+6. Evaluasi firewall.
+7. Evaluasi NAT jika relevan.
+8. Periksa link tujuan.
+9. Tentukan keberhasilan atau kegagalan.
+10. Simpan packet trace dan diagnosis.
+
+Setiap hop menampilkan:
+- Node.
+- Interface masuk.
+- Interface keluar.
+- Action.
+- Status.
+- Drop reason jika gagal.
+
+---
+
+## 12. DEVICE HEALTH & STATUS ENGINE
+
+Status wajib:
+- RUN.
+- DEGRADED.
+- DIE.
+- DISABLED.
+- UNKNOWN.
+
+Pisahkan status:
+- Device health.
+- Interface administrative state.
+- Interface operational state.
+- Physical link state.
+- IP reachability.
+- Routing reachability.
+- Service reachability.
+
+Jangan menyatukan seluruh status menjadi satu boolean.
+
+### RUN
+Objek memenuhi kriteria operasional yang relevan.
+
+### DEGRADED
+Objek masih bekerja, tetapi mengalami congestion, packet loss, latency tinggi, atau penurunan kualitas berdasarkan threshold yang dikonfigurasi.
+
+### DIE
+Objek gagal beroperasi pada level yang sedang dievaluasi.
+
+### DISABLED
+Objek dinonaktifkan secara administratif atau sengaja dimatikan.
+
+### UNKNOWN
+Informasi belum tersedia atau tidak cukup untuk menentukan status.
+
+Sediakan:
+- Configurable thresholds.
+- Last state transition.
+- Last successful check.
+- Last failed check.
+- Failure duration.
+- Recovery duration.
+- Status history.
+
+Status RUN tidak boleh berarti semua layanan pasti dapat diakses. Link fisik dapat RUN sementara koneksi IP mengalami kegagalan.
+
+---
+
+## 13. TRAFFIC MONITORING
+
+Tampilkan data trafik pada setiap link dan perangkat.
+
+Metric:
+- RX bits per second.
+- TX bits per second.
+- RX/TX packet rate.
+- Capacity.
+- Utilization percentage.
+- Queue occupancy jika dimodelkan.
+- Latency.
+- Jitter.
+- Packet loss.
+- Traffic drops.
+- Peak throughput.
+
+### Visualisasi
+- Live traffic chart.
+- Historical chart.
+- Link utilization.
+- Traffic flow animation.
+- Heatmap utilisasi.
+- Congestion warning.
+- Traffic per WAN.
+- Traffic per VLAN.
+- Traffic per endpoint.
+
+Gunakan model trafik deterministik atau seed yang tersimpan jika dibutuhkan untuk mereproduksi skenario.
+
+Semua angka simulasi harus ditandai sebagai simulated traffic.
+
+Jangan mengklaim angka tersebut sebagai pengukuran perangkat nyata.
+
+---
+
+## 14. DIAGNOSTICS & ROOT CAUSE ENGINE
+
+Setiap error harus menghasilkan diagnosis terstruktur.
+
+Kode penyebab minimal:
+- LINK_ENDPOINT_MISSING.
+- INTERFACE_DISABLED.
+- INTERFACE_NOT_FOUND.
+- TRANSCEIVER_INCOMPATIBLE.
+- MEDIA_MISMATCH.
+- SPEED_MISMATCH.
+- FIBER_SIGNAL_LOSS.
+- VLAN_NOT_ALLOWED.
+- VLAN_MISMATCH.
+- IP_SUBNET_MISMATCH.
+- IP_ADDRESS_CONFLICT.
+- GATEWAY_UNREACHABLE.
+- ROUTE_NOT_FOUND.
+- FIREWALL_DROP.
+- NAT_MISCONFIGURED.
+- DHCP_UNAVAILABLE.
+- DNS_FAILURE.
+- LINK_CONGESTION.
+- BANDWIDTH_EXCEEDED.
+- PACKET_LOSS_THRESHOLD.
+- DEVICE_UNREACHABLE.
+- SERVICE_UNAVAILABLE.
+- MONITORING_DATA_UNAVAILABLE.
+
+Setiap diagnosis berisi:
+- error_code.
+- severity.
+- object_id.
+- affected_objects.
+- status.
+- observed_condition.
+- evidence.
+- probable_cause.
+- confirmed_cause jika dapat diverifikasi.
+- impact.
+- recommended_action.
+- simulation_run_id.
+
+Diagnosis harus berasal dari rule engine dan data yang diperiksa. AI boleh menjelaskan diagnosis, tetapi tidak boleh mengganti bukti atau mengarang penyebab.
+
+---
+
+## 15. EVENT LOG & AUDIT LOG
+
+Pisahkan event log jaringan dari audit aktivitas pengguna.
+
+### Event log
+
+Catat:
+- Link up/down.
+- Device status transition.
+- Interface state change.
+- Trafik melampaui threshold.
+- Congestion.
+- VLAN failure.
+- Routing failure.
+- DHCP/DNS failure.
+- Packet drop.
+- Recovery.
+- Simulation start/stop.
+- Injected failure.
+- Root-cause result.
+
+### Audit log
+
+Catat:
+- User/actor ID.
+- Timestamp.
+- Action.
+- Entity type.
+- Entity ID.
+- Project ID.
+- Before state.
+- After state.
+- Operation result.
+- Correlation ID.
+- Source: CLI, form, AI, import, atau device integration.
+
+Audit log harus mencatat perubahan konfigurasi dan tindakan administratif penting.
+
+Jangan mencatat password, API token, private key, atau secret.
+
+Sediakan filter:
+- Date/time.
+- Severity.
+- Project.
+- Device.
+- Link.
+- User.
+- Event type.
+- Error code.
+
+Sediakan ekspor JSON dan CSV.
+
+---
+
+## 16. AI NETWORK ASSISTANT
+
+Bangun AI assistant yang menerima instruksi bahasa Indonesia, misalnya:
+
+"Buat topologi kampus dengan dua ISP 300 Mbps, router CCR2116, VLAN 20 civitas, VLAN 40 mahasiswa, VLAN 60 operasional, VLAN 80 direksi, serta switch distribusi melalui SFP+."
+
+AI harus:
+1. Memahami kebutuhan.
+2. Meminta klarifikasi jika ada informasi kritis yang belum tersedia.
+3. Menyusun proposed topology.
+4. Memilih perangkat berdasarkan katalog.
+5. Membuat draft konfigurasi.
+6. Menjalankan validasi deterministik.
+7. Menjalankan simulasi.
+8. Menjelaskan error dan risiko.
+9. Menawarkan perbaikan.
+10. Menampilkan diff sebelum perubahan diterapkan.
+
+AI tidak boleh mengubah model produksi secara diam-diam.
+
+Gunakan pendekatan structured output dan schema validation. Semua operasi AI harus diubah menjadi tindakan terstruktur yang divalidasi oleh backend.
+
+Jangan memberikan akses shell atau kredensial perangkat langsung kepada model.
+
+---
+
+## 17. STORAGE JSON
+
+Pada tahap prototipe, gunakan JSON sebagai penyimpanan persisten di backend.
+
+Struktur direktori yang disarankan:
+
+data/
+  projects.json
+  devices.json
+  device_models.json
+  interfaces.json
+  links.json
+  networks.json
+  vlans.json
+  routes.json
+  isp_services.json
+  traffic_profiles.json
+  simulation_runs.json
+  diagnostics.json
+  event_logs.json
+  audit_logs.json
+  config_artifacts.json
+  users.json
+  settings.json
+
+Implementasikan:
+- Unique IDs.
+- Schema versioning.
+- Input validation.
+- Atomic file writes.
+- Write serialization/locking.
+- Backup and restore.
+- Referential integrity.
+- Data migration utilities.
+- Error recovery.
+
+Jangan menganggap JSON files aman untuk concurrent multi-user writes tanpa mekanisme sinkronisasi.
+
+Buat interface repository sehingga JSON repository dapat diganti dengan PostgreSQL repository tanpa mengubah business logic.
+
+Jangan menyimpan kredensial perangkat secara plaintext.
+
+---
+
+## 18. API BACKEND
+
+Rancang endpoint REST minimal:
+
+Projects:
+- GET /api/projects
+- POST /api/projects
+- GET /api/projects/:id
+- PUT /api/projects/:id
+- DELETE /api/projects/:id
+
+Devices:
+- GET /api/device-models
+- POST /api/projects/:id/devices
+- PUT /api/devices/:id
+- DELETE /api/devices/:id
+
+Links:
+- POST /api/projects/:id/links
+- PUT /api/links/:id
+- DELETE /api/links/:id
+
+Configuration:
+- POST /api/projects/:id/validate
+- POST /api/projects/:id/commands
+- POST /api/projects/:id/generate-config
+
+Simulation:
+- POST /api/projects/:id/simulations
+- GET /api/simulations/:id
+- POST /api/simulations/:id/stop
+- POST /api/simulations/:id/diagnostics
+
+Monitoring:
+- GET /api/projects/:id/traffic
+- GET /api/projects/:id/status
+- GET /api/projects/:id/events
+
+Audit:
+- GET /api/audit-logs
+- GET /api/event-logs
+
+Gunakan Zod atau validasi setara pada seluruh input API.
+
+Gunakan WebSocket/SSE untuk status, trafik, dan event yang diperbarui selama simulasi.
+
+---
+
+## 19. KEAMANAN DAN INTEGRASI PERANGKAT NYATA
+
+Mode default adalah simulation-only.
+
+Mode integrasi perangkat nyata harus terpisah dan dinonaktifkan secara default.
+
+Persyaratan:
+- Autentikasi dan otorisasi.
+- Role-based access control.
+- Least privilege.
+- Device allowlist.
+- Secret storage yang aman.
+- Audit log.
+- Confirmation sebelum perubahan konfigurasi.
+- Backup sebelum perubahan.
+- Diff dan validation.
+- Timeout dan error handling.
+- Rollback plan.
+- Pembatasan jaringan management.
+- Proteksi SSRF.
+- Proteksi command injection.
+- Rate limiting.
+
+Jangan mengeksekusi script hasil AI secara otomatis ke perangkat.
+
+Sediakan mode:
+1. Simulation.
+2. Generate-only.
+3. Read-only device inspection.
+4. Controlled apply dengan persetujuan eksplisit.
+
+Gunakan RouterOS API atau mekanisme integrasi yang sesuai, bukan asumsi bahwa simulasi logis dapat menjalankan RouterOS secara langsung.
+
+---
+
+## 20. EXPORT DAN DOKUMENTASI
+
+Dukung:
+- Export/import project JSON.
+- Export topology PNG/SVG.
+- Export RouterOS `.rsc`.
+- Export device inventory CSV.
+- Export event log CSV/JSON.
+- Export audit log CSV/JSON.
+- Export simulation report PDF.
+- Export IP address plan.
+- Export VLAN table.
+- Export port mapping.
+- Export ISP bandwidth inventory.
+
+Laporan harus memuat:
+- Diagram topologi.
+- Daftar perangkat.
+- Link dan interface.
+- IP addressing.
+- VLAN.
+- Routing.
+- ISP profile.
+- Status simulasi.
+- Traffic utilization.
+- Error dan root cause.
+- Rekomendasi perbaikan.
+- Waktu dan identitas simulasi.
+
+---
+
+## 21. TESTING DAN ACCEPTANCE CRITERIA
+
+Buat unit tests, integration tests, dan UI tests.
+
+### Test topologi
+- Membuat perangkat.
+- Menghubungkan port.
+- Memutus link.
+- Menyimpan dan memuat project.
+- Memvalidasi interface yang tidak tersedia.
+- Menguji koneksi Ethernet dan fiber.
+
+### Test fiber optic
+- SFP yang kompatibel menghasilkan link RUN.
+- Transceiver yang tidak kompatibel menghasilkan diagnosis.
+- Interface disabled menghasilkan DISABLED.
+- Link yang terputus menghasilkan DIE pada link.
+- Perangkat tanpa port SFP tidak menerima koneksi optik secara langsung.
+
+### Test jaringan
+- Endpoint dalam satu subnet dapat berkomunikasi jika seluruh syarat terpenuhi.
+- VLAN yang salah menyebabkan konektivitas gagal dengan alasan yang jelas.
+- Static route yang valid memungkinkan jalur antar-subnet.
+- Gateway yang tidak valid menghasilkan diagnosis.
+- Firewall drop tercatat sebagai alasan packet drop.
+- Jalur alternatif dapat dipilih jika routing dan link alternatif valid.
+
+### Test ISP
+- Dedicated dan shared memiliki model perhitungan berbeda.
+- CIR tidak disamakan dengan nominal bandwidth.
+- Upload dan download diproses secara terpisah.
+- Rasio contention memengaruhi estimasi fair-share sesuai mode yang dipilih.
+- Trafik di atas kapasitas memicu congestion sesuai model.
+- Failover mengalihkan trafik jika jalur alternatif tersedia.
+
+### Test monitoring
+- RX/TX mengikuti model paket yang disimulasikan.
+- Utilisasi tidak melebihi 100% tanpa penjelasan mengenai oversubscription atau offered load.
+- Link yang gagal tidak meneruskan trafik.
+- Status RUN/DIE/DEGRADED/DISABLED/UNKNOWN sesuai rule engine.
+- Semua transisi status menghasilkan event log.
+- Setiap diagnosis dapat ditelusuri ke evidence dan simulation run.
+
+### Test audit
+- Perubahan konfigurasi dicatat.
+- Before/after state sesuai perubahan.
+- Kegagalan operasi tercatat.
+- Secret tidak muncul dalam log.
+- Perubahan melalui CLI, form, dan AI menghasilkan model yang konsisten.
+
+### Test konsistensi
+- Tidak ada link ke interface yang tidak tersedia.
+- Tidak ada ID duplikat.
+- Tidak ada perubahan UI yang hanya mengubah tampilan tanpa memperbarui model.
+- Project dapat dimuat kembali setelah aplikasi direstart apabila backend persisten tersedia.
+
+---
+
+## 22. TAHAPAN IMPLEMENTASI
+
+Bangun aplikasi secara bertahap dan pastikan setiap tahap berfungsi sebelum melanjutkan.
+
+### Phase 1 — Foundation
+- Setup project.
+- UI layout.
+- JSON repository.
+- Device catalog.
+- Project management.
+- Topology canvas.
+- Save/load.
+
+### Phase 2 — Connectivity
+- Interface model.
+- Link engine.
+- Ethernet.
+- SFP/SFP+.
+- Cable compatibility.
+- Device inspector.
+
+### Phase 3 — Configuration
+- CLI parser.
+- Form configuration.
+- Unified graph model.
+- Validation engine.
+- Undo/redo.
+
+### Phase 4 — Simulation
+- IP addressing.
+- Switching.
+- VLAN.
+- Routing.
+- Ping/traceroute.
+- Packet trace.
+
+### Phase 5 — ISP & Monitoring
+- Dedicated/shared ISP.
+- CIR dan contention.
+- Traffic model.
+- Congestion.
+- Link health.
+- Status engine.
+
+### Phase 6 — Diagnostics & Audit
+- Root-cause rules.
+- Event logs.
+- Audit logs.
+- Traffic visualization.
+- Export laporan.
+
+### Phase 7 — MikroTik Generator
+- RouterOS 6.
+- RouterOS 7.
+- Device-specific templates.
+- Script validation.
+- Preview/diff.
+- Export RSC.
+
+### Phase 8 — AI Assistant
+- Natural language input.
+- Structured topology proposal.
+- Validation.
+- Simulation.
+- Recommended fixes.
+
+### Phase 9 — Device Integration
+- RouterOS API.
+- Read-only inspection.
+- Device status.
+- Traffic counters.
+- Controlled configuration apply.
+
+Jangan membangun seluruh tahapan sebagai komponen dummy sekaligus. Prioritaskan fondasi yang berfungsi, kemudian kembangkan fitur sesuai dependensinya.
+
+---
+
+## 23. INSTRUKSI EKSEKUSI UNTUK AI STUDIO
+
+Mulai dengan memeriksa kebutuhan aplikasi, merancang struktur folder, menentukan tipe data, dan membuat arsitektur komponen.
+
+Kemudian implementasikan Phase 1 terlebih dahulu.
+
+Setelah Phase 1 selesai:
+1. Jalankan pemeriksaan TypeScript.
+2. Perbaiki semua error build.
+3. Pastikan semua tombol utama memiliki fungsi.
+4. Pastikan perangkat dapat ditambahkan dan dihubungkan.
+5. Pastikan project dapat disimpan dan dimuat kembali.
+6. Jalankan pengujian yang tersedia.
+7. Lanjutkan ke Phase 2.
+
+Pertahankan konsistensi data dan arsitektur pada setiap tahap.
+
+Jika ada fitur yang belum dapat dijalankan secara nyata, jelaskan keterbatasannya dan sediakan interface yang benar untuk implementasi lanjutan. Jangan menyamarkan fitur yang belum tersedia sebagai fitur yang telah selesai.
+
+## 24. HASIL AKHIR YANG DIHARAPKAN
+
+Hasil akhir adalah aplikasi NETLAB yang dapat digunakan sebagai laboratorium simulasi jaringan untuk:
+
+- Merancang jaringan kampus dan enterprise.
+- Menyusun koneksi modem ISP, MikroTik, switch, fiber optic, AP, server, dan endpoint.
+- Mengonfigurasi perangkat melalui CLI dan form.
+- Menentukan bandwidth dan karakteristik layanan internet.
+- Menyimulasikan paket dan jalur routing.
+- Memantau trafik pada setiap link.
+- Mengidentifikasi kegagalan perangkat atau koneksi beserta penyebabnya.
+- Menghasilkan konfigurasi RouterOS 6/7.
+- Menyimpan seluruh project dan riwayat simulasi.
+- Menyediakan audit trail yang lengkap.
+- Berkembang menuju integrasi perangkat nyata.
+
+**Prioritas paling tinggi: akurasi model topologi, kesesuaian interface perangkat, validasi fiber optic, konsistensi engine simulasi, status RUN/DIE yang dapat dijelaskan, dan pencatatan log yang dapat diaudit.**
+
+Mulai implementasi sekarang dari Phase 1, hasilkan kode aplikasi yang dapat dijalankan, dan sertakan README.md serta petunjuk pengujian.

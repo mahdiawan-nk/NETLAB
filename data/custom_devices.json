@@ -1,0 +1,392 @@
+[
+  {
+    "id": "custom-mikrotik-ccr2004-16g-2splus",
+    "name": "MikroTik CCR2004-16G-2S+PC",
+    "brand": "MikroTik",
+    "manufacturer": "SIA MikroTikls",
+    "modelNumber": "CCR2004-16G-2S+PC",
+    "productSeries": "CCR2004 Series",
+    "category": "router",
+    "description": "Cloud Core Router with 16 Gigabit Ethernet ports, 2 10G SFP+ cages, Annapurna Alpine AL32400 quad-core 1.7GHz CPU, and passive cooling enclosure.",
+    "formFactor": "1U Rackmount",
+    "releaseYear": 2021,
+    "officialProductUrl": "https://mikrotik.com/product/ccr2004_16g_2s_plus_pc",
+    "datasheetUrl": "https://i.mt.lv/cdn/rb_files/1647432655CCR2004-16G-2S+PC-220311093035.pdf",
+    "verificationStatus": "VERIFIED",
+    "sourceReferences": [
+      {
+        "id": "ref-ccr2004-1",
+        "type": "Manufacturer Datasheet",
+        "title": "MikroTik CCR2004-16G-2S+PC Specification Sheet",
+        "url": "https://i.mt.lv/cdn/rb_files/1647432655CCR2004-16G-2S+PC-220311093035.pdf",
+        "accessedAt": "2026-10-30",
+        "verifiedBy": "NETLAB Hardware Analyst"
+      }
+    ],
+    "hardware": {
+      "cpuManufacturer": "Annapurna Labs",
+      "cpuModel": "Alpine AL32400",
+      "cpuArchitecture": "ARM 64bit",
+      "cpuCores": 4,
+      "cpuFrequencyMhz": 1700,
+      "ramMb": 4096,
+      "storageMb": 128,
+      "operatingSystem": "RouterOS v7",
+      "powerConsumptionWatts": 36,
+      "powerSupplyType": "Dual Redundant AC Inputs",
+      "coolingSystem": "Passive (Silent Fanless Heatsink)"
+    },
+    "ports": [
+      { "id": "ether1", "name": "ether1 (WAN)", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 1, "portGroup": "WAN Uplink", "colorTag": "#3b82f6" },
+      { "id": "ether2", "name": "ether2", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 2, "portGroup": "LAN Group 1", "colorTag": "#10b981" },
+      { "id": "ether3", "name": "ether3", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 3, "portGroup": "LAN Group 1", "colorTag": "#10b981" },
+      { "id": "ether4", "name": "ether4", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 4, "portGroup": "LAN Group 1", "colorTag": "#10b981" },
+      { "id": "ether5", "name": "ether5", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 5, "portGroup": "LAN Group 1", "colorTag": "#10b981" },
+      { "id": "ether6", "name": "ether6", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 6, "portGroup": "LAN Group 1", "colorTag": "#10b981" },
+      { "id": "ether7", "name": "ether7", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 7, "portGroup": "LAN Group 1", "colorTag": "#10b981" },
+      { "id": "ether8", "name": "ether8", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 8, "portGroup": "LAN Group 1", "colorTag": "#10b981" },
+      { "id": "ether9", "name": "ether9", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 9, "portGroup": "LAN Group 2", "colorTag": "#06b6d4" },
+      { "id": "ether10", "name": "ether10", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 10, "portGroup": "LAN Group 2", "colorTag": "#06b6d4" },
+      { "id": "ether11", "name": "ether11", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 11, "portGroup": "LAN Group 2", "colorTag": "#06b6d4" },
+      { "id": "ether12", "name": "ether12", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 12, "portGroup": "LAN Group 2", "colorTag": "#06b6d4" },
+      { "id": "ether13", "name": "ether13", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 13, "portGroup": "LAN Group 2", "colorTag": "#06b6d4" },
+      { "id": "ether14", "name": "ether14", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 14, "portGroup": "LAN Group 2", "colorTag": "#06b6d4" },
+      { "id": "ether15", "name": "ether15", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 15, "portGroup": "LAN Group 2", "colorTag": "#06b6d4" },
+      { "id": "ether16", "name": "ether16", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 16, "portGroup": "LAN Group 2", "colorTag": "#06b6d4" },
+      { "id": "sfp-plus1", "name": "sfp-plus1 (Trunk)", "type": "sfp-plus", "category": "fixed", "defaultSpeed": "10G", "supportedSpeeds": ["1G", "10G"], "duplex": "full", "connectorType": "LC", "mediaType": "fiber-smf", "portPosition": 17, "portGroup": "10G Optical Uplink", "colorTag": "#f59e0b" },
+      { "id": "sfp-plus2", "name": "sfp-plus2 (Trunk)", "type": "sfp-plus", "category": "fixed", "defaultSpeed": "10G", "supportedSpeeds": ["1G", "10G"], "duplex": "full", "connectorType": "LC", "mediaType": "fiber-smf", "portPosition": 18, "portGroup": "10G Optical Uplink", "colorTag": "#f59e0b" }
+    ],
+    "portLayout": {
+      "faceplateStyle": "1U-Full-Width",
+      "rows": 2,
+      "columns": 10,
+      "totalPorts": 18,
+      "portsOrder": [
+        "ether1", "ether2", "ether3", "ether4", "ether5", "ether6", "ether7", "ether8",
+        "ether9", "ether10", "ether11", "ether12", "ether13", "ether14", "ether15", "ether16",
+        "sfp-plus1", "sfp-plus2"
+      ]
+    },
+    "capabilities": {
+      "general": { "layer2": true, "layer3": true, "ipv4": true, "ipv6": true, "staticRouting": true, "dynamicRouting": true },
+      "switching": { "vlanSupport": true, "vlanTrunking": true, "stp": true, "rstp": true, "mstp": true, "linkAggregation": true, "lacp": true, "portMirroring": true, "jumboFrames": true, "maxJumboFrameBytes": 10218 },
+      "routing": { "staticRoute": true, "ospf": true, "bgp": true, "rip": true, "ecmp": true, "policyRouting": true },
+      "networkServices": { "nat": true, "dhcpServer": true, "dhcpClient": true, "dnsForwarder": true, "firewall": true, "vpn": true, "qos": true, "trafficShaping": true, "hotspot": true, "radius": true }
+    },
+    "performance": {
+      "switchingCapacityGbps": 72,
+      "forwardingRateMpps": 53.6,
+      "maxThroughputMbps": 20000,
+      "routingThroughputMbps": 15000,
+      "firewallThroughputMbps": 12000,
+      "vpnThroughputMbps": 3400,
+      "maxMacTableSize": 32000,
+      "maxVlanCount": 4094,
+      "maxRoutingEntries": 1200000,
+      "maxConcurrentSessions": 500000
+    },
+    "poe": { "supported": false },
+    "compatibility": {
+      "supportedTransceivers": ["sfpplus-10g-lr", "sfpplus-10g-sr", "sfpplus-10g-er", "sfp-1g-lx", "sfp-1g-sx"],
+      "supportedMedia": ["copper-cat6", "copper-cat6a", "fiber-smf", "fiber-mmf"],
+      "allowsDacCables": true,
+      "allowsAocCables": true
+    },
+    "simulationProfile": {
+      "supportedSimulationFeatures": ["L1-Carrier", "L2-VLAN", "L3-Routing", "L3-NAT", "Traffic-Telemetry"],
+      "switchingBehavior": "SIMULATED",
+      "routingBehavior": "SIMULATED",
+      "vlanBehavior": "SIMULATED",
+      "natBehavior": "SIMULATED",
+      "dhcpBehavior": "SIMULATED",
+      "firewallBehavior": "SIMULATED",
+      "trafficHandling": "Hardware-Offloaded"
+    },
+    "isCustom": true,
+    "schemaVersion": 2,
+    "specificationVersion": 1,
+    "createdBy": "system",
+    "updatedBy": "system",
+    "createdAt": "2026-10-30T10:00:00.000Z",
+    "updatedAt": "2026-10-30T10:00:00.000Z"
+  },
+  {
+    "id": "custom-cisco-catalyst-2960x-24td",
+    "name": "Cisco Catalyst 2960-X-24TD-L",
+    "brand": "Cisco",
+    "manufacturer": "Cisco Systems, Inc.",
+    "modelNumber": "WS-C2960X-24TD-L",
+    "productSeries": "Catalyst 2960-X Series",
+    "category": "switch",
+    "description": "Enterprise-class layer 2 managed access switch with 24 Gigabit Ethernet ports and 2 10G SFP+ uplink ports running Cisco IOS LAN Base.",
+    "formFactor": "1U Rackmount",
+    "releaseYear": 2018,
+    "officialProductUrl": "https://www.cisco.com/c/en/us/products/switches/catalyst-2960-x-series-switches/index.html",
+    "datasheetUrl": "https://www.cisco.com/c/en/us/products/collateral/switches/catalyst-2960-x-series-switches/datasheet_c78-728232.html",
+    "verificationStatus": "VERIFIED",
+    "sourceReferences": [
+      {
+        "id": "ref-cisco-2960x",
+        "type": "Manufacturer Datasheet",
+        "title": "Cisco Systems Catalyst 2960-X Data Sheet",
+        "url": "https://www.cisco.com/c/en/us/products/collateral/switches/catalyst-2960-x-series-switches/datasheet_c78-728232.html",
+        "accessedAt": "2026-10-30",
+        "verifiedBy": "NETLAB Hardware Analyst"
+      }
+    ],
+    "hardware": {
+      "cpuManufacturer": "AppliedMicro",
+      "cpuModel": "APM86392 Dual Core",
+      "cpuArchitecture": "PowerPC",
+      "cpuCores": 2,
+      "cpuFrequencyMhz": 600,
+      "ramMb": 512,
+      "storageMb": 128,
+      "operatingSystem": "Cisco IOS LAN Base 15.2(7)E",
+      "powerConsumptionWatts": 45,
+      "powerSupplyType": "Internal AC 100-240V",
+      "coolingSystem": "Active Fans"
+    },
+    "ports": [
+      { "id": "Gi1/0/1", "name": "Gi1/0/1", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 1, "portGroup": "Access Ports", "colorTag": "#10b981" },
+      { "id": "Gi1/0/2", "name": "Gi1/0/2", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 2, "portGroup": "Access Ports", "colorTag": "#10b981" },
+      { "id": "Te1/0/1", "name": "Te1/0/1 (Uplink)", "type": "sfp-plus", "category": "fixed", "defaultSpeed": "10G", "supportedSpeeds": ["1G", "10G"], "duplex": "full", "connectorType": "LC", "mediaType": "fiber-smf", "portPosition": 3, "portGroup": "10G Uplink", "colorTag": "#f59e0b" },
+      { "id": "Te1/0/2", "name": "Te1/0/2 (Uplink)", "type": "sfp-plus", "category": "fixed", "defaultSpeed": "10G", "supportedSpeeds": ["1G", "10G"], "duplex": "full", "connectorType": "LC", "mediaType": "fiber-smf", "portPosition": 4, "portGroup": "10G Uplink", "colorTag": "#f59e0b" }
+    ],
+    "portLayout": {
+      "faceplateStyle": "1U-Full-Width",
+      "rows": 1,
+      "columns": 4,
+      "totalPorts": 4,
+      "portsOrder": ["Gi1/0/1", "Gi1/0/2", "Te1/0/1", "Te1/0/2"]
+    },
+    "capabilities": {
+      "general": { "layer2": true, "layer3": false, "ipv4": true, "ipv6": true, "staticRouting": true, "dynamicRouting": false },
+      "switching": { "vlanSupport": true, "vlanTrunking": true, "stp": true, "rstp": true, "mstp": true, "linkAggregation": true, "lacp": true, "portMirroring": true, "jumboFrames": true, "maxJumboFrameBytes": 9198 },
+      "routing": { "staticRoute": true, "ospf": false, "bgp": false, "rip": false, "ecmp": false, "policyRouting": false },
+      "networkServices": { "nat": false, "dhcpServer": false, "dhcpClient": true, "dnsForwarder": false, "firewall": false, "vpn": false, "qos": true, "trafficShaping": true, "hotspot": false, "radius": true }
+    },
+    "performance": {
+      "switchingCapacityGbps": 216,
+      "forwardingRateMpps": 95.2,
+      "maxThroughputMbps": 108000,
+      "maxMacTableSize": 16000,
+      "maxVlanCount": 1023
+    },
+    "poe": { "supported": false },
+    "compatibility": {
+      "supportedTransceivers": ["sfpplus-10g-lr", "sfpplus-10g-sr", "sfp-1g-lx", "sfp-1g-sx"],
+      "supportedMedia": ["copper-cat6", "copper-cat6a", "fiber-smf", "fiber-mmf"],
+      "allowsDacCables": true,
+      "allowsAocCables": true
+    },
+    "simulationProfile": {
+      "supportedSimulationFeatures": ["L1-Carrier", "L2-VLAN", "Traffic-Telemetry"],
+      "switchingBehavior": "SIMULATED",
+      "routingBehavior": "UNKNOWN",
+      "vlanBehavior": "SIMULATED",
+      "natBehavior": "UNKNOWN",
+      "dhcpBehavior": "UNKNOWN",
+      "firewallBehavior": "UNKNOWN",
+      "trafficHandling": "Hardware-Offloaded"
+    },
+    "isCustom": true,
+    "schemaVersion": 2,
+    "specificationVersion": 1,
+    "createdBy": "system",
+    "updatedBy": "system",
+    "createdAt": "2026-10-30T10:00:00.000Z",
+    "updatedAt": "2026-10-30T10:00:00.000Z"
+  },
+  {
+    "id": "custom-ubiquiti-unifi-u6-pro",
+    "name": "Ubiquiti UniFi 6 Pro (U6-Pro)",
+    "brand": "Ubiquiti",
+    "manufacturer": "Ubiquiti Inc.",
+    "modelNumber": "U6-Pro",
+    "productSeries": "UniFi 6 Series",
+    "category": "access-point",
+    "description": "High-performance ceiling-mounted Wi-Fi 6 access point designed for dense campus environments with dual-band 5.3 Gbps aggregate throughput.",
+    "formFactor": "Ceiling/Wall",
+    "releaseYear": 2022,
+    "officialProductUrl": "https://store.ui.com/us/en/pro/category/all-wifi/products/u6-pro",
+    "datasheetUrl": "https://dl.ui.com/ds/u6-pro_ds.pdf",
+    "verificationStatus": "VERIFIED",
+    "sourceReferences": [
+      {
+        "id": "ref-ui-u6pro",
+        "type": "Manufacturer Datasheet",
+        "title": "Ubiquiti UniFi 6 Pro Technical Datasheet",
+        "url": "https://dl.ui.com/ds/u6-pro_ds.pdf",
+        "accessedAt": "2026-10-30",
+        "verifiedBy": "NETLAB Hardware Analyst"
+      }
+    ],
+    "hardware": {
+      "cpuManufacturer": "Qualcomm",
+      "cpuModel": "IPQ5018 Dual-Core",
+      "cpuArchitecture": "ARM Cortex-A53",
+      "cpuCores": 2,
+      "cpuFrequencyMhz": 1000,
+      "ramMb": 512,
+      "storageMb": 64,
+      "operatingSystem": "UniFi AP Firmware v6.6",
+      "powerConsumptionWatts": 13,
+      "powerSupplyType": "802.3at PoE+",
+      "coolingSystem": "Passive Heatsink"
+    },
+    "ports": [
+      { "id": "eth0", "name": "eth0 (PoE-In)", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 1, "portGroup": "Uplink PoE+", "poeCapability": { "supportsIn": true, "supportsOut": false, "standard": "802.3at (PoE+ 30W)" }, "colorTag": "#3b82f6" },
+      { "id": "wlan0", "name": "wlan0 (2.4G)", "type": "wireless", "category": "wireless", "defaultSpeed": "1G", "supportedSpeeds": ["1G"], "duplex": "half", "connectorType": "Internal", "mediaType": "wireless-rf", "portPosition": 2, "portGroup": "WLAN Radio", "colorTag": "#eab308" },
+      { "id": "wlan1", "name": "wlan1 (5G)", "type": "wireless", "category": "wireless", "defaultSpeed": "1G", "supportedSpeeds": ["1G"], "duplex": "half", "connectorType": "Internal", "mediaType": "wireless-rf", "portPosition": 3, "portGroup": "WLAN Radio", "colorTag": "#eab308" }
+    ],
+    "portLayout": {
+      "faceplateStyle": "Desktop-Front",
+      "rows": 1,
+      "columns": 3,
+      "totalPorts": 3,
+      "portsOrder": ["eth0", "wlan0", "wlan1"]
+    },
+    "capabilities": {
+      "general": { "layer2": true, "layer3": false, "ipv4": true, "ipv6": true, "staticRouting": false, "dynamicRouting": false },
+      "switching": { "vlanSupport": true, "vlanTrunking": true, "stp": false, "rstp": false, "mstp": false, "linkAggregation": false, "lacp": false, "portMirroring": false, "jumboFrames": false },
+      "routing": { "staticRoute": false, "ospf": false, "bgp": false, "rip": false, "ecmp": false, "policyRouting": false },
+      "networkServices": { "nat": false, "dhcpServer": false, "dhcpClient": true, "dnsForwarder": false, "firewall": false, "vpn": false, "qos": true, "trafficShaping": true, "hotspot": true, "radius": true }
+    },
+    "performance": {
+      "switchingCapacityGbps": 2,
+      "forwardingRateMpps": 1.48,
+      "maxThroughputMbps": 5300,
+      "maxConnectedClients": 350
+    },
+    "poe": {
+      "supported": true,
+      "type": "PD (Powered Device)",
+      "standard": "802.3at (PoE+ 30W)"
+    },
+    "wireless": {
+      "wifiStandard": "Wi-Fi 6 (802.11ax)",
+      "frequencyBands": ["2.4GHz", "5GHz"],
+      "radioCount": 2,
+      "maxPhyRateMbps": 5300,
+      "spatialStreams": "4x4 MU-MIMO (5 GHz) & 2x2 MIMO (2.4 GHz)",
+      "mimoSupported": true,
+      "muMimoSupported": true,
+      "antennaType": "Internal Omnidirectional",
+      "maxWirelessClients": 350
+    },
+    "compatibility": {
+      "supportedTransceivers": [],
+      "supportedMedia": ["copper-cat6", "copper-cat6a", "wireless-rf"],
+      "allowsDacCables": false,
+      "allowsAocCables": false
+    },
+    "simulationProfile": {
+      "supportedSimulationFeatures": ["L1-Carrier", "L2-VLAN", "Traffic-Telemetry"],
+      "switchingBehavior": "SIMULATED",
+      "routingBehavior": "UNKNOWN",
+      "vlanBehavior": "SIMULATED",
+      "natBehavior": "UNKNOWN",
+      "dhcpBehavior": "UNKNOWN",
+      "firewallBehavior": "UNKNOWN",
+      "trafficHandling": "Hardware-Offloaded"
+    },
+    "isCustom": true,
+    "schemaVersion": 2,
+    "specificationVersion": 1,
+    "createdBy": "system",
+    "updatedBy": "system",
+    "createdAt": "2026-10-30T10:00:00.000Z",
+    "updatedAt": "2026-10-30T10:00:00.000Z"
+  },
+  {
+    "id": "custom-dell-poweredge-r640",
+    "name": "Dell PowerEdge R640 Enterprise Server",
+    "brand": "Dell",
+    "manufacturer": "Dell Technologies",
+    "modelNumber": "PowerEdge R640",
+    "productSeries": "PowerEdge 14G Rack Servers",
+    "category": "server",
+    "description": "Dense, scalable 1U two-socket computing platform ideal for virtualization, high-density cloud data center workloads, and network functions.",
+    "formFactor": "1U Rackmount",
+    "releaseYear": 2019,
+    "officialProductUrl": "https://www.dell.com/en-us/shop/productdetails/poweredge-r640",
+    "datasheetUrl": "https://i.dell.com/sites/csdocuments/Shared-Content_data-Sheets_Documents/en/us/poweredge-r640-spec-sheet.pdf",
+    "verificationStatus": "VERIFIED",
+    "sourceReferences": [
+      {
+        "id": "ref-dell-r640",
+        "type": "Manufacturer Datasheet",
+        "title": "Dell PowerEdge R640 Technical Specification Guide",
+        "url": "https://i.dell.com/sites/csdocuments/Shared-Content_data-Sheets_Documents/en/us/poweredge-r640-spec-sheet.pdf",
+        "accessedAt": "2026-10-30",
+        "verifiedBy": "NETLAB Hardware Analyst"
+      }
+    ],
+    "hardware": {
+      "cpuManufacturer": "Intel",
+      "cpuModel": "Dual Intel Xeon Gold 6248R",
+      "cpuArchitecture": "x86_64",
+      "cpuCores": 24,
+      "cpuFrequencyMhz": 3000,
+      "ramMb": 131072,
+      "storageMb": 3840000,
+      "operatingSystem": "Ubuntu Server 22.04 LTS / Proxmox VE",
+      "powerConsumptionWatts": 450,
+      "powerSupplyType": "Dual Redundant Hot-Plug 750W",
+      "coolingSystem": "Active Multi-Zone Redundant Fans"
+    },
+    "ports": [
+      { "id": "eno1", "name": "eno1", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 1, "portGroup": "rNDC GbE", "colorTag": "#10b981" },
+      { "id": "eno2", "name": "eno2", "type": "ethernet", "category": "fixed", "defaultSpeed": "1G", "supportedSpeeds": ["100M", "1G"], "duplex": "full", "connectorType": "RJ45", "mediaType": "copper-cat6", "portPosition": 2, "portGroup": "rNDC GbE", "colorTag": "#10b981" },
+      { "id": "ens1f0", "name": "ens1f0", "type": "sfp-plus", "category": "fixed", "defaultSpeed": "10G", "supportedSpeeds": ["1G", "10G"], "duplex": "full", "connectorType": "LC", "mediaType": "fiber-smf", "portPosition": 3, "portGroup": "PCIe Intel 10G SFP+", "colorTag": "#f59e0b" },
+      { "id": "ens1f1", "name": "ens1f1", "type": "sfp-plus", "category": "fixed", "defaultSpeed": "10G", "supportedSpeeds": ["1G", "10G"], "duplex": "full", "connectorType": "LC", "mediaType": "fiber-smf", "portPosition": 4, "portGroup": "PCIe Intel 10G SFP+", "colorTag": "#f59e0b" }
+    ],
+    "portLayout": {
+      "faceplateStyle": "1U-Full-Width",
+      "rows": 1,
+      "columns": 4,
+      "totalPorts": 4,
+      "portsOrder": ["eno1", "eno2", "ens1f0", "ens1f1"]
+    },
+    "capabilities": {
+      "general": { "layer2": true, "layer3": true, "ipv4": true, "ipv6": true, "staticRouting": true, "dynamicRouting": true },
+      "switching": { "vlanSupport": true, "vlanTrunking": true, "stp": false, "rstp": false, "mstp": false, "linkAggregation": true, "lacp": true, "portMirroring": false, "jumboFrames": true, "maxJumboFrameBytes": 9000 },
+      "routing": { "staticRoute": true, "ospf": false, "bgp": false, "rip": false, "ecmp": false, "policyRouting": true },
+      "networkServices": { "nat": true, "dhcpServer": true, "dhcpClient": true, "dnsForwarder": true, "firewall": true, "vpn": true, "qos": true, "trafficShaping": true, "hotspot": false, "radius": false }
+    },
+    "performance": {
+      "switchingCapacityGbps": 40,
+      "forwardingRateMpps": 28.5,
+      "maxThroughputMbps": 20000,
+      "firewallThroughputMbps": 18000,
+      "vpnThroughputMbps": 8000,
+      "maxMacTableSize": 65536,
+      "maxConcurrentSessions": 1000000
+    },
+    "poe": { "supported": false },
+    "compatibility": {
+      "supportedTransceivers": ["sfpplus-10g-lr", "sfpplus-10g-sr", "sfp-1g-lx", "sfp-1g-sx"],
+      "supportedMedia": ["copper-cat6", "copper-cat6a", "fiber-smf", "fiber-mmf"],
+      "allowsDacCables": true,
+      "allowsAocCables": true
+    },
+    "simulationProfile": {
+      "supportedSimulationFeatures": ["L1-Carrier", "L2-VLAN", "L3-Routing", "L3-NAT", "Traffic-Telemetry"],
+      "switchingBehavior": "SIMULATED",
+      "routingBehavior": "SIMULATED",
+      "vlanBehavior": "SIMULATED",
+      "natBehavior": "SIMULATED",
+      "dhcpBehavior": "SIMULATED",
+      "firewallBehavior": "SIMULATED",
+      "trafficHandling": "Hardware-Offloaded"
+    },
+    "isCustom": true,
+    "schemaVersion": 2,
+    "specificationVersion": 1,
+    "createdBy": "system",
+    "updatedBy": "system",
+    "createdAt": "2026-10-30T10:00:00.000Z",
+    "updatedAt": "2026-10-30T10:00:00.000Z"
+  }
+]

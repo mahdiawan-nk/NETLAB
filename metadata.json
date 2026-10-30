@@ -1,0 +1,6 @@
+{
+  "name": "NETLAB - Network Topology & MikroTik Simulator",
+  "description": "Interactive enterprise and campus network topology designer, fiber optic engine, MikroTik RouterOS configuration validator, and simulation platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
