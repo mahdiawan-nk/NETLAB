@@ -81,9 +81,11 @@ export interface RouterOsRoute {
   distance: number; // default 1
   scope: number; // default 30
   targetScope: number; // default 10
+  checkGateway?: 'ping' | 'arp' | 'none';
   disabled: boolean;
   active: boolean;
   routingTable?: string; // v7 routing table or "main"
+  routingMark?: string; // v6 routing mark
   comment?: string;
 }
 
@@ -135,8 +137,137 @@ export interface RouterOsDnsConfig {
 }
 
 // ==========================================
-// 8. IP Firewall: Filter & NAT
+// 8. IP Firewall: Filter, NAT, Mangle & Address Lists
 // ==========================================
+
+export type MangleChain = 'prerouting' | 'input' | 'forward' | 'output' | 'postrouting';
+
+export type MangleAction =
+  | 'accept'
+  | 'add-src-to-address-list'
+  | 'add-dst-to-address-list'
+  | 'change-dscp'
+  | 'change-mss'
+  | 'change-ttl'
+  | 'mark-connection'
+  | 'mark-packet'
+  | 'mark-routing'
+  | 'passthrough'
+  | 'return'
+  | 'log';
+
+export interface MangleRule {
+  id: string;
+  order: number;
+  disabled: boolean;
+  invalid: boolean;
+  invalidReason?: string;
+  dynamic?: boolean;
+
+  // General
+  chain: MangleChain;
+  srcAddress?: string; // IP, CIDR, or !IP/CIDR
+  dstAddress?: string;
+  protocol?: string; // tcp, udp, icmp, gre, ipsec-esp, all
+  srcPort?: string;
+  dstPort?: string;
+  inInterface?: string;
+  outInterface?: string;
+  inInterfaceList?: string;
+  outInterfaceList?: string;
+
+  // Advanced
+  srcAddressList?: string;
+  dstAddressList?: string;
+  connectionState?: string; // e.g. "new", "established,related"
+  connectionMark?: string;
+  packetMark?: string;
+  routingMark?: string;
+  packetLength?: string; // e.g. "0-128"
+  packetSize?: string; // alias for packetLength
+  dscp?: number | string; // 0-63
+  priority?: number | string; // 0-7
+  pcc?: string; // Per Connection Classifier e.g. "both-addresses:2/0"
+  perConnectionClassifier?: string; // alias for pcc
+
+  // Extra
+  limit?: string; // e.g. "10/1s,5:packet"
+  time?: string; // e.g. "08:00:00-17:00:00,mon,tue,wed,thu,fri"
+  layer7Protocol?: string; // RouterOS v6 only
+  connectionBytes?: string; // e.g. "500000-0"
+  connectionRate?: string; // e.g. "2M-100M"
+
+  // Action & Action Parameters
+  action: MangleAction;
+  newConnectionMark?: string;
+  newPacketMark?: string;
+  newRoutingMark?: string;
+  addressList?: string;
+  addressListTimeout?: string;
+  newDscp?: number | string;
+  newMss?: number | string;
+  newTtl?: number | string;
+  log?: boolean;
+  logPrefix?: string;
+  passthrough: boolean;
+
+  // Metadata & Counters
+  comment?: string;
+  bytes: number;
+  packets: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RouterOsAddressListEntry {
+  id: string;
+  list: string; // e.g. "LAN-SUBNETS", "STUDENT-LIST", "BLOCKED-IPS"
+  address: string; // IP or CIDR e.g. "10.20.0.0/24"
+  timeout?: string; // e.g. "1h", "00:30:00"
+  dynamic?: boolean;
+  disabled: boolean;
+  comment?: string;
+  creationTime?: string;
+}
+
+export interface RouterOsInterfaceList {
+  id: string;
+  name: string; // e.g. "WAN", "LAN"
+  comment?: string;
+}
+
+export interface RouterOsInterfaceListMember {
+  id: string;
+  list: string; // e.g. "WAN"
+  interface: string; // e.g. "ether1"
+  disabled?: boolean;
+}
+
+export interface RouterOsRoutingTable {
+  id: string;
+  name: string; // e.g. "main", "to-ISP1", "to-ISP2"
+  fib: boolean;
+  disabled: boolean;
+  dynamic?: boolean;
+  comment?: string;
+}
+
+export interface RouterOsConnectionTrackingEntry {
+  id: string;
+  protocol: string;
+  srcAddress: string;
+  dstAddress: string;
+  srcPort?: string;
+  dstPort?: string;
+  connectionState: 'new' | 'established' | 'related';
+  connectionMark?: string;
+  packetMark?: string;
+  routingMark?: string;
+  timeout: string;
+  bytes: number;
+  packets: number;
+  updatedAt: string;
+}
 
 export interface RouterOsFirewallFilterRule {
   id: string;
@@ -149,7 +280,12 @@ export interface RouterOsFirewallFilterRule {
   dstPort?: string;
   inInterface?: string;
   outInterface?: string;
+  srcAddressList?: string;
+  dstAddressList?: string;
   connectionState?: string; // e.g. "established,related"
+  connectionMark?: string;
+  packetMark?: string;
+  routingMark?: string;
   disabled: boolean;
   comment?: string;
   bytesCount?: number;
@@ -164,6 +300,11 @@ export interface RouterOsFirewallNatRule {
   inInterface?: string;
   srcAddress?: string;
   dstAddress?: string;
+  srcAddressList?: string;
+  dstAddressList?: string;
+  connectionMark?: string;
+  packetMark?: string;
+  routingMark?: string;
   protocol?: 'tcp' | 'udp' | 'all';
   dstPort?: string;
   toAddresses?: string;
@@ -175,7 +316,7 @@ export interface RouterOsFirewallNatRule {
 }
 
 // ==========================================
-// 9. Simple Queues & QoS Bandwidth Shaping
+// 9. Simple Queues & Queue Tree (QoS Bandwidth Shaping)
 // ==========================================
 
 export interface RouterOsSimpleQueue {
@@ -189,9 +330,24 @@ export interface RouterOsSimpleQueue {
   burstThresholdUploadBps?: number;
   burstThresholdDownloadBps?: number;
   burstTimeSeconds?: number;
+  packetMarks?: string; // Matches packet-mark from Mangle
   priority?: number; // 1 (highest) to 8 (lowest)
   disabled: boolean;
   comment?: string;
+}
+
+export interface RouterOsQueueTree {
+  id: string;
+  name: string;
+  parent: string; // e.g. "global" or interface name
+  packetMark: string; // Matches packet-mark from Mangle
+  limitAtBps?: number;
+  maxLimitBps: number;
+  priority: number; // 1 to 8
+  disabled: boolean;
+  comment?: string;
+  bytes?: number;
+  packets?: number;
 }
 
 // ==========================================
@@ -234,6 +390,126 @@ export interface RouterOsBackupSnapshot {
 }
 
 // ==========================================
+// 11B. Multi-WAN Configuration Manager & Telemetry
+// ==========================================
+
+export type MultiWanTemplateType = 'failover' | 'load-balancing' | 'hybrid';
+export type WanConnectionType = 'dhcp' | 'static' | 'pppoe';
+export type WanRole = 'primary' | 'secondary' | 'backup';
+export type WanHealthCheckMethod = 'simple-gateway' | 'recursive-route' | 'external-target';
+export type WanOperationalState = 'UP' | 'DOWN' | 'DEGRADED' | 'RECOVERING';
+
+export type LoadBalancingMethod =
+  | 'pcc-both-addresses'
+  | 'pcc-both-addresses-and-ports'
+  | 'pcc-src-address'
+  | 'pcc-dst-address'
+  | 'ecmp'
+  | 'weighted-pcc';
+
+export type MultiWanSimulationScenarioId =
+  | 'all-normal'
+  | 'wan1-down'
+  | 'wan2-down'
+  | 'wan3-down'
+  | 'two-wans-down'
+  | 'all-wans-down'
+  | 'wan-recovery'
+  | 'wan-overload'
+  | 'gateway-up-internet-down'
+  | 'isp-bandwidth-change';
+
+export interface MultiWanInterfaceConfig {
+  id: string;
+  name: string; // e.g. "WAN1", "WAN2", "WAN3", "WAN4"
+  physicalInterface: string; // e.g. "ether1", "ether2", "sfp-sfpplus1"
+  ispProviderName: string; // e.g. "Biznet Dedicated", "IndiHome Fiber", "Starlink"
+  connectionType: WanConnectionType;
+  ipAddress: string; // e.g. "203.142.80.2/30"
+  gateway: string; // e.g. "203.142.80.1"
+  pppoeUsername?: string;
+  pppoePassword?: string;
+  downloadMbps: number;
+  uploadMbps: number;
+  cirMbps: number;
+  contentionRatio: string; // e.g. "1:1", "1:4", "1:8"
+  latencyMs: number;
+  jitterMs: number;
+  packetLossPercent: number;
+  role: WanRole;
+  priority: number; // 1 = highest priority
+  distance: number; // Route distance (1, 2, 3...)
+  manualWeight?: number; // Optional manual weight ratio for Weighted PCC
+  healthCheckMethod: WanHealthCheckMethod;
+  healthCheckTarget: string; // e.g. "8.8.8.8", "1.1.1.1", "9.9.9.9"
+  checkIntervalSec: number;
+  failThreshold: number;
+  recoveryThreshold: number;
+  // Multi-layer simulation states
+  linkState: 'UP' | 'DOWN';
+  gatewayState: 'REACHABLE' | 'UNREACHABLE';
+  internetState: 'ONLINE' | 'OFFLINE';
+  serviceState: 'AVAILABLE' | 'DEGRADED' | 'UNAVAILABLE';
+  operationalStatus: WanOperationalState;
+  isOverloaded?: boolean;
+}
+
+export interface HybridPolicyRule {
+  id: string;
+  name: string; // e.g. "VLAN 20 Lecturer Priority", "Classroom PCC Pool"
+  priority: number; // Order 1, 2, 3...
+  enabled: boolean;
+  policyType: 'vlan' | 'src-address' | 'dst-address' | 'application' | 'custom';
+  inInterfaceOrVlan?: string; // e.g. "vlan20", "bridge-lan"
+  srcAddress?: string; // e.g. "10.20.0.0/24"
+  dstAddress?: string; // e.g. "0.0.0.0/0"
+  protocol?: 'tcp' | 'udp' | 'icmp' | 'all';
+  dstPort?: string; // e.g. "80,443" or "5060"
+  serviceLabel?: string; // e.g. "Web/HTTPS", "VoIP SIP", "Video Zoom"
+  routingMode: 'failover' | 'pcc' | 'weighted-pcc';
+  pccClassifier?: 'both-addresses' | 'both-addresses-and-ports' | 'src-address' | 'dst-address';
+  preferredWanIds: string[]; // Primary WAN(s) used for Failover or PCC group
+  backupWanIds: string[]; // Ordered failover WAN IDs if preferred WAN(s) go down
+  comment?: string;
+}
+
+export interface MultiWanEventLog {
+  id: string;
+  timestamp: string;
+  type: 'FAILOVER' | 'RECOVERY' | 'DEGRADED' | 'CONFIG_APPLY' | 'ROLLBACK' | 'SIMULATION';
+  wanId?: string;
+  wanName?: string;
+  message: string;
+  routeAction?: string;
+}
+
+export interface MultiWanConfigState {
+  activeTemplate: MultiWanTemplateType;
+  selectedPresetId?: string;
+  wans: MultiWanInterfaceConfig[];
+  // Failover specific options
+  failoverCheckMethod: WanHealthCheckMethod;
+  autoRecovery: boolean;
+  fastFailoverIntervalSec: number;
+  // Load Balancing specific options
+  loadBalancingMethod: LoadBalancingMethod;
+  useAutoBandwidthWeight: boolean;
+  connectionTrackingSticky: boolean;
+  autoFailoverUnhealthyWan: boolean;
+  // Hybrid specific options
+  hybridPolicies: HybridPolicyRule[];
+  // Local LAN networks to bypass policy routing (RFC1918 + router subnets)
+  localLanSubnets: string[];
+  // Simulation & Telemetry state
+  activeScenario: MultiWanSimulationScenarioId;
+  simulatedTotalDemandDownMbps: number;
+  simulatedTotalDemandUpMbps: number;
+  simulatedActiveConnections: number;
+  events: MultiWanEventLog[];
+  lastAppliedAt?: string;
+}
+
+// ==========================================
 // 12. Master Device Configuration Model
 // ==========================================
 
@@ -241,11 +517,14 @@ export interface RouterOsDeviceConfig {
   version: RouterOsVersion;
   identity: RouterOsSystemIdentity;
   interfaces: RouterOsInterface[];
+  interfaceLists?: RouterOsInterfaceList[];
+  interfaceListMembers?: RouterOsInterfaceListMember[];
   bridges: RouterOsBridge[];
   bridgePorts: RouterOsBridgePort[];
   vlans: RouterOsVlan[];
   ipAddresses: RouterOsIpAddress[];
   routes: RouterOsRoute[];
+  routingTables?: RouterOsRoutingTable[];
   ipPools: RouterOsIpPool[];
   dhcpServers: RouterOsDhcpServer[];
   dhcpNetworks: RouterOsDhcpNetwork[];
@@ -253,9 +532,14 @@ export interface RouterOsDeviceConfig {
   firewall: {
     filterRules: RouterOsFirewallFilterRule[];
     natRules: RouterOsFirewallNatRule[];
+    mangleRules: MangleRule[];
+    addressLists?: RouterOsAddressListEntry[];
   };
+  connectionTracking?: RouterOsConnectionTrackingEntry[];
   queues: RouterOsSimpleQueue[];
+  queueTree?: RouterOsQueueTree[];
   backups: RouterOsBackupSnapshot[];
+  multiWanConfig?: MultiWanConfigState;
   lastModifiedAt: string;
 }
 

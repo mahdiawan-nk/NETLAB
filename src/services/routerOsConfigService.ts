@@ -7,18 +7,26 @@ import { DEVICE_CATALOG } from '../data/deviceCatalog';
 import {
   RouterOsDeviceConfig,
   RouterOsInterface,
+  RouterOsInterfaceList,
+  RouterOsInterfaceListMember,
   RouterOsBridge,
   RouterOsBridgePort,
   RouterOsVlan,
   RouterOsIpAddress,
   RouterOsRoute,
+  RouterOsRoutingTable,
   RouterOsIpPool,
   RouterOsDhcpServer,
   RouterOsDhcpNetwork,
   RouterOsDnsConfig,
   RouterOsFirewallFilterRule,
   RouterOsFirewallNatRule,
+  MangleRule,
+  MangleChain,
+  MangleAction,
+  RouterOsAddressListEntry,
   RouterOsSimpleQueue,
+  RouterOsQueueTree,
   RouterOsSystemResource,
   RouterOsBackupSnapshot,
   RouterOsIpAddressSchema,
@@ -28,6 +36,29 @@ import {
   RouterOsSimpleQueueSchema,
 } from '../types/routerOs';
 import { parseIPv4Cidr } from './validationEngine';
+
+export const VALID_MANGLE_CHAINS: MangleChain[] = [
+  'prerouting',
+  'input',
+  'forward',
+  'output',
+  'postrouting',
+];
+
+export const VALID_MANGLE_ACTIONS: MangleAction[] = [
+  'accept',
+  'add-src-to-address-list',
+  'add-dst-to-address-list',
+  'change-dscp',
+  'change-mss',
+  'change-ttl',
+  'mark-connection',
+  'mark-packet',
+  'mark-routing',
+  'passthrough',
+  'return',
+  'log',
+];
 
 export interface MutationResult<T = RouterOsDeviceConfig> {
   success: boolean;
@@ -126,10 +157,34 @@ export class RouterOsConfigService {
       if (!cfg.dhcpServers) cfg.dhcpServers = [];
       if (!cfg.dhcpNetworks) cfg.dhcpNetworks = [];
       if (!cfg.dns) cfg.dns = { servers: ['8.8.8.8', '1.1.1.1'], allowRemoteRequests: true, cacheSizeKb: 2048, staticEntries: [] };
-      if (!cfg.firewall) cfg.firewall = { filterRules: [], natRules: [] };
+      if (!cfg.firewall) cfg.firewall = { filterRules: [], natRules: [], mangleRules: [], addressLists: [] };
       if (!cfg.firewall.filterRules) cfg.firewall.filterRules = [];
       if (!cfg.firewall.natRules) cfg.firewall.natRules = [];
+      if (!cfg.firewall.mangleRules) cfg.firewall.mangleRules = [];
+      if (!cfg.firewall.addressLists) cfg.firewall.addressLists = [];
+      if (!cfg.interfaceLists) {
+        cfg.interfaceLists = [
+          { id: 'iflist-wan', name: 'WAN', comment: 'defconf: WAN interfaces' },
+          { id: 'iflist-lan', name: 'LAN', comment: 'defconf: LAN interfaces' },
+        ];
+      }
+      if (!cfg.interfaceListMembers) {
+        const wanIface = device.interfaces.find((i) => i.mode === 'wan')?.name || device.interfaces[0]?.name || 'ether1';
+        cfg.interfaceListMembers = [
+          { id: 'ifm-1', list: 'WAN', interface: wanIface },
+          ...device.interfaces
+            .filter((i) => i.name !== wanIface)
+            .map((i, idx) => ({ id: `ifm-lan-${idx + 1}`, list: 'LAN', interface: i.name })),
+        ];
+      }
+      if (!cfg.routingTables) {
+        cfg.routingTables = [
+          { id: 'rt-main', name: 'main', fib: true, disabled: false, dynamic: true, comment: 'Default FIB Routing Table' },
+        ];
+      }
+      if (!cfg.connectionTracking) cfg.connectionTracking = [];
       if (!cfg.queues) cfg.queues = [];
+      if (!cfg.queueTree) cfg.queueTree = [];
       if (!cfg.backups) cfg.backups = [];
       if (!cfg.identity) cfg.identity = { name: device.name };
       if (!cfg.version) cfg.version = device.routerOsVersion === 'v7' ? 'v7' : 'v6';
@@ -152,6 +207,22 @@ export class RouterOsConfigService {
           });
         }
       }
+
+      // Normalize Mangle rules order & recompute validity
+      cfg.firewall.mangleRules = cfg.firewall.mangleRules.map((rule, idx) => {
+        const check = this.validateMangleRuleState(device, cfg, rule);
+        return {
+          ...rule,
+          order: idx,
+          bytes: typeof rule.bytes === 'number' ? rule.bytes : 0,
+          packets: typeof rule.packets === 'number' ? rule.packets : 0,
+          passthrough: rule.passthrough !== undefined ? rule.passthrough : true,
+          invalid: !check.valid,
+          invalidReason: check.reason,
+          createdAt: rule.createdAt || new Date().toISOString(),
+          updatedAt: rule.updatedAt || new Date().toISOString(),
+        };
+      });
 
       return cfg;
     }
@@ -267,15 +338,30 @@ export class RouterOsConfigService {
       });
     }
 
+    const wanIfaceName = device.interfaces.find((i) => i.mode === 'wan')?.name || device.interfaces[0]?.name || 'ether1';
+
     const newConfig: RouterOsDeviceConfig = {
       version: device.routerOsVersion === 'v7' ? 'v7' : 'v6',
       identity: { name: device.name },
       interfaces: rosInterfaces,
+      interfaceLists: [
+        { id: 'iflist-wan', name: 'WAN', comment: 'defconf: WAN interfaces' },
+        { id: 'iflist-lan', name: 'LAN', comment: 'defconf: LAN interfaces' },
+      ],
+      interfaceListMembers: [
+        { id: 'ifm-1', list: 'WAN', interface: wanIfaceName },
+        ...device.interfaces
+          .filter((i) => i.name !== wanIfaceName)
+          .map((i, idx) => ({ id: `ifm-lan-${idx + 1}`, list: 'LAN', interface: i.name })),
+      ],
       bridges,
       bridgePorts,
       vlans: [],
       ipAddresses,
       routes,
+      routingTables: [
+        { id: 'rt-main', name: 'main', fib: true, disabled: false, dynamic: true, comment: 'Default FIB Routing Table' },
+      ],
       ipPools: [
         {
           id: 'pool-1',
@@ -304,8 +390,12 @@ export class RouterOsConfigService {
       firewall: {
         filterRules,
         natRules,
+        mangleRules: [],
+        addressLists: [],
       },
+      connectionTracking: [],
       queues: [],
+      queueTree: [],
       backups: [],
       lastModifiedAt: new Date().toISOString(),
     };
@@ -921,12 +1011,766 @@ export class RouterOsConfigService {
   }
 
   // ==========================================
+  // /IP FIREWALL MANGLE & SUPPORTING OPERATIONS
+  // ==========================================
+
+  /**
+   * Validates whether a MangleRule is operationally valid on the current device and RouterOS version.
+   * Used both during rule creation/editing and dynamically when interfaces or RouterOS versions change.
+   */
+  static validateMangleRuleState(
+    device: NetworkDevice,
+    cfg: RouterOsDeviceConfig,
+    rule: Partial<MangleRule>
+  ): { valid: boolean; reason?: string } {
+    const chain = rule.chain || 'prerouting';
+    const action = rule.action || 'accept';
+
+    if (!VALID_MANGLE_CHAINS.includes(chain as MangleChain)) {
+      return { valid: false, reason: `syntax error: invalid chain '${chain}' (expected prerouting, input, forward, output, or postrouting)` };
+    }
+
+    if (!VALID_MANGLE_ACTIONS.includes(action as MangleAction)) {
+      return { valid: false, reason: `syntax error: invalid mangle action '${action}'` };
+    }
+
+    // Chain vs Interface direction restrictions in RouterOS
+    if (rule.inInterface && (chain === 'output' || chain === 'postrouting')) {
+      return {
+        valid: false,
+        reason: `failure: incoming interface matching not possible in ${chain} chain`,
+      };
+    }
+    if (rule.outInterface && (chain === 'prerouting' || chain === 'input')) {
+      return {
+        valid: false,
+        reason: `failure: outgoing interface matching not possible in ${chain} chain`,
+      };
+    }
+
+    // Check physical/logical interface existence
+    if (rule.inInterface) {
+      const cleanIn = rule.inInterface.replace(/^!/, '').trim();
+      if (cleanIn && cleanIn !== 'all-ethernet' && cleanIn !== 'all-vlan' && !this.isValidInterface(device, cleanIn, cfg)) {
+        return {
+          valid: false,
+          reason: `input does not match any value of interface ('${cleanIn}' does not exist on ${device.modelName})`,
+        };
+      }
+    }
+    if (rule.outInterface) {
+      const cleanOut = rule.outInterface.replace(/^!/, '').trim();
+      if (cleanOut && cleanOut !== 'all-ethernet' && cleanOut !== 'all-vlan' && !this.isValidInterface(device, cleanOut, cfg)) {
+        return {
+          valid: false,
+          reason: `input does not match any value of out-interface ('${cleanOut}' does not exist on ${device.modelName})`,
+        };
+      }
+    }
+
+    // Check Interface List existence if specified
+    if (rule.inInterfaceList) {
+      const cleanList = rule.inInterfaceList.replace(/^!/, '').trim();
+      const exists =
+        cleanList === 'all' ||
+        cleanList === 'none' ||
+        cleanList === 'dynamic' ||
+        (cfg.interfaceLists || []).some((l) => l.name.toLowerCase() === cleanList.toLowerCase());
+      if (!exists) {
+        return {
+          valid: false,
+          reason: `input does not match any value of in-interface-list ('${cleanList}')`,
+        };
+      }
+    }
+    if (rule.outInterfaceList) {
+      const cleanList = rule.outInterfaceList.replace(/^!/, '').trim();
+      const exists =
+        cleanList === 'all' ||
+        cleanList === 'none' ||
+        cleanList === 'dynamic' ||
+        (cfg.interfaceLists || []).some((l) => l.name.toLowerCase() === cleanList.toLowerCase());
+      if (!exists) {
+        return {
+          valid: false,
+          reason: `input does not match any value of out-interface-list ('${cleanList}')`,
+        };
+      }
+    }
+
+    // Validate IP/CIDR syntax if provided
+    for (const [label, addrVal] of [
+      ['src-address', rule.srcAddress],
+      ['dst-address', rule.dstAddress],
+    ] as const) {
+      if (addrVal && addrVal.trim() !== '') {
+        const cleanAddr = addrVal.trim().replace(/^!/, '').trim();
+        if (cleanAddr.includes('-')) {
+          // IP range e.g. 192.168.1.10-192.168.1.50
+          const parts = cleanAddr.split('-');
+          const p1 = parseIPv4Cidr(`${parts[0].trim()}/32`);
+          const p2 = parseIPv4Cidr(`${(parts[1] || '').trim()}/32`);
+          if (!p1 || !p2) {
+            return { valid: false, reason: `failure: invalid ${label} range '${addrVal}'` };
+          }
+        } else {
+          const withMask = cleanAddr.includes('/') ? cleanAddr : `${cleanAddr}/32`;
+          if (!parseIPv4Cidr(withMask)) {
+            return { valid: false, reason: `failure: invalid ${label} value '${addrVal}'` };
+          }
+        }
+      }
+    }
+
+    // Validate ports if provided
+    if ((rule.srcPort || rule.dstPort) && rule.protocol && !['tcp', 'udp', 'sctp', 'dccp'].includes(rule.protocol.toLowerCase())) {
+      return {
+        valid: false,
+        reason: `failure: ports can be specified if proto is tcp or udp`,
+      };
+    }
+
+    // RouterOS v6 vs v7 Layer7 Protocol check
+    if (rule.layer7Protocol && cfg.version === 'v7') {
+      return {
+        valid: false,
+        reason: `syntax error: 'layer7-protocol' matcher is only supported in RouterOS v6 (deprecated/unsupported in RouterOS v7)`,
+      };
+    }
+
+    // Action-specific parameter requirements
+    if (action === 'mark-connection' && (!rule.newConnectionMark || !rule.newConnectionMark.trim())) {
+      return { valid: false, reason: `failure: new-connection-mark is required for action=mark-connection` };
+    }
+    if (action === 'mark-packet' && (!rule.newPacketMark || !rule.newPacketMark.trim())) {
+      return { valid: false, reason: `failure: new-packet-mark is required for action=mark-packet` };
+    }
+    if (action === 'mark-routing') {
+      if (!rule.newRoutingMark || !rule.newRoutingMark.trim()) {
+        return { valid: false, reason: `failure: new-routing-mark is required for action=mark-routing` };
+      }
+      if (chain !== 'prerouting' && chain !== 'output') {
+        return {
+          valid: false,
+          reason: `failure: mark-routing can be used only in prerouting and output chains`,
+        };
+      }
+      // RouterOS v7 requires new-routing-mark to reference a valid routing table in /routing table
+      if (cfg.version === 'v7') {
+        const targetMark = rule.newRoutingMark.trim();
+        const validTable =
+          targetMark === 'main' ||
+          (cfg.routingTables || []).some(
+            (rt) => !rt.disabled && rt.name.toLowerCase() === targetMark.toLowerCase()
+          );
+        if (!validTable) {
+          return {
+            valid: false,
+            reason: `input does not match any value of new-routing-mark: routing table '${targetMark}' does not exist in /routing table (RouterOS v7 requires explicit routing table declaration)`,
+          };
+        }
+      }
+    }
+
+    if (
+      (action === 'add-src-to-address-list' || action === 'add-dst-to-address-list') &&
+      (!rule.addressList || !rule.addressList.trim())
+    ) {
+      return {
+        valid: false,
+        reason: `failure: address-list name is required for action=${action}`,
+      };
+    }
+
+    if (action === 'change-dscp') {
+      const dscpNum = Number(rule.newDscp);
+      if (rule.newDscp === undefined || rule.newDscp === '' || isNaN(dscpNum) || dscpNum < 0 || dscpNum > 63) {
+        return { valid: false, reason: `failure: new-dscp (0..63) is required for action=change-dscp` };
+      }
+    }
+
+    if (action === 'change-mss') {
+      const mssStr = String(rule.newMss ?? '').trim();
+      const mssNum = Number(mssStr);
+      if (!mssStr || (mssStr !== 'clamp-to-pmtu' && (isNaN(mssNum) || mssNum < 64 || mssNum > 65535))) {
+        return { valid: false, reason: `failure: valid new-mss (64..65535 or clamp-to-pmtu) is required for action=change-mss` };
+      }
+    }
+
+    if (action === 'change-ttl') {
+      const ttlStr = String(rule.newTtl ?? '').trim();
+      const ttlNum = Number(ttlStr.replace(/^(set|increment|decrement):/i, ''));
+      if (!ttlStr || isNaN(ttlNum) || ttlNum < 1 || ttlNum > 255) {
+        return { valid: false, reason: `failure: valid new-ttl (1..255) is required for action=change-ttl` };
+      }
+    }
+
+    return { valid: true };
+  }
+
+  static addMangleRule(
+    device: NetworkDevice,
+    input: Partial<Omit<MangleRule, 'id' | 'order' | 'createdAt' | 'updatedAt'>> & {
+      chain: MangleChain;
+      action: MangleAction;
+    },
+    options?: { allowInvalid?: boolean }
+  ): MutationResult {
+    const config = this.ensureConfig(device);
+    const validation = this.validateMangleRuleState(device, config, input);
+    if (!validation.valid && !options?.allowInvalid) {
+      return { success: false, error: validation.reason || 'Invalid mangle rule parameters' };
+    }
+
+    const now = new Date().toISOString();
+    const newId = `*${(config.firewall.mangleRules.length + 1).toString(16).toUpperCase()}-${Date.now().toString(36).slice(-4)}`;
+
+    // Default passthrough behavior in RouterOS:
+    // mark-connection, mark-packet, mark-routing default to passthrough=yes unless specified;
+    // accept, return default to passthrough=no
+    let passthrough = input.passthrough !== undefined ? Boolean(input.passthrough) : true;
+    if (input.action === 'accept' || input.action === 'return') {
+      passthrough = false;
+    }
+
+    const pccVal = (input.pcc || input.perConnectionClassifier || '').trim() || undefined;
+    const pktLenVal = (input.packetLength || input.packetSize || '').trim() || undefined;
+
+    const newRule: MangleRule = {
+      id: newId,
+      order: config.firewall.mangleRules.length,
+      disabled: Boolean(input.disabled),
+      invalid: !validation.valid,
+      invalidReason: validation.reason,
+      dynamic: Boolean(input.dynamic),
+      chain: input.chain,
+      srcAddress: input.srcAddress?.trim() || undefined,
+      dstAddress: input.dstAddress?.trim() || undefined,
+      protocol: input.protocol && input.protocol !== 'all' ? input.protocol.trim().toLowerCase() : undefined,
+      srcPort: input.srcPort?.trim() || undefined,
+      dstPort: input.dstPort?.trim() || undefined,
+      inInterface: input.inInterface?.trim() || undefined,
+      outInterface: input.outInterface?.trim() || undefined,
+      inInterfaceList: input.inInterfaceList?.trim() || undefined,
+      outInterfaceList: input.outInterfaceList?.trim() || undefined,
+      srcAddressList: input.srcAddressList?.trim() || undefined,
+      dstAddressList: input.dstAddressList?.trim() || undefined,
+      connectionState: input.connectionState?.trim() || undefined,
+      connectionMark: input.connectionMark?.trim() || undefined,
+      packetMark: input.packetMark?.trim() || undefined,
+      routingMark: input.routingMark?.trim() || undefined,
+      packetLength: pktLenVal,
+      packetSize: pktLenVal,
+      dscp: input.dscp !== undefined && input.dscp !== '' && !isNaN(Number(input.dscp)) ? Number(input.dscp) : undefined,
+      priority: input.priority !== undefined && input.priority !== '' && !isNaN(Number(input.priority)) ? Number(input.priority) : undefined,
+      pcc: pccVal,
+      perConnectionClassifier: pccVal,
+      limit: input.limit?.trim() || undefined,
+      time: input.time?.trim() || undefined,
+      layer7Protocol: input.layer7Protocol?.trim() || undefined,
+      connectionBytes: input.connectionBytes?.trim() || undefined,
+      connectionRate: input.connectionRate?.trim() || undefined,
+      action: input.action,
+      newConnectionMark: input.newConnectionMark?.trim() || undefined,
+      newPacketMark: input.newPacketMark?.trim() || undefined,
+      newRoutingMark: input.newRoutingMark?.trim() || undefined,
+      addressList: input.addressList?.trim() || undefined,
+      addressListTimeout: input.addressListTimeout?.trim() || undefined,
+      newDscp: input.newDscp !== undefined && input.newDscp !== '' && !isNaN(Number(input.newDscp)) ? Number(input.newDscp) : undefined,
+      newMss: input.newMss !== undefined && input.newMss !== '' ? input.newMss : undefined,
+      newTtl: input.newTtl !== undefined && input.newTtl !== '' ? input.newTtl : undefined,
+      log: input.log,
+      logPrefix: input.logPrefix?.trim() || undefined,
+      passthrough,
+      comment: input.comment?.trim() || undefined,
+      bytes: input.bytes ?? 0,
+      packets: input.packets ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const nextRules = [...config.firewall.mangleRules, newRule].map((r, idx) => ({
+      ...r,
+      order: idx,
+    }));
+
+    const nextConfig: RouterOsDeviceConfig = {
+      ...config,
+      firewall: {
+        ...config.firewall,
+        mangleRules: nextRules,
+      },
+      lastModifiedAt: now,
+    };
+
+    return {
+      success: true,
+      config: nextConfig,
+      createdId: newId,
+      message: `Added mangle rule #${nextRules.length - 1} (chain=${newRule.chain} action=${newRule.action})`,
+    };
+  }
+
+  static updateMangleRule(
+    device: NetworkDevice,
+    idOrIndex: string,
+    updates: Partial<MangleRule>,
+    options?: { allowInvalid?: boolean }
+  ): MutationResult {
+    const config = this.ensureConfig(device);
+    const targetIdx = config.firewall.mangleRules.findIndex(
+      (r, idx) => r.id === idOrIndex || String(idx) === idOrIndex || String(r.order) === idOrIndex
+    );
+    if (targetIdx < 0) {
+      return { success: false, error: `no such item (${idOrIndex})` };
+    }
+
+    const existing = config.firewall.mangleRules[targetIdx];
+    const pccVal = updates.pcc ?? updates.perConnectionClassifier ?? existing.pcc ?? existing.perConnectionClassifier;
+    const pktLenVal = updates.packetLength ?? updates.packetSize ?? existing.packetLength ?? existing.packetSize;
+    const merged: MangleRule = {
+      ...existing,
+      ...updates,
+      pcc: pccVal,
+      perConnectionClassifier: pccVal,
+      packetLength: pktLenVal,
+      packetSize: pktLenVal,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const validation = this.validateMangleRuleState(device, config, merged);
+    if (!validation.valid && !options?.allowInvalid) {
+      return { success: false, error: validation.reason || 'Invalid mangle rule update' };
+    }
+
+    merged.invalid = !validation.valid;
+    merged.invalidReason = validation.reason;
+
+    const nextRules = config.firewall.mangleRules.map((r, idx) =>
+      idx === targetIdx ? { ...merged, order: idx } : { ...r, order: idx }
+    );
+
+    const nextConfig: RouterOsDeviceConfig = {
+      ...config,
+      firewall: {
+        ...config.firewall,
+        mangleRules: nextRules,
+      },
+      lastModifiedAt: new Date().toISOString(),
+    };
+
+    return {
+      success: true,
+      config: nextConfig,
+      message: `Updated mangle rule #${targetIdx} (${merged.chain} -> ${merged.action})`,
+    };
+  }
+
+  static removeMangleRule(device: NetworkDevice, idOrIndexList: string): MutationResult {
+    const config = this.ensureConfig(device);
+    const tokens = idOrIndexList
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    if (tokens.length === 0) {
+      return { success: false, error: 'syntax error: expected rule number or id to remove' };
+    }
+
+    const idsToRemove = new Set<string>();
+    for (const token of tokens) {
+      const target = config.firewall.mangleRules.find(
+        (r, idx) => r.id === token || String(idx) === token || String(r.order) === token
+      );
+      if (!target) {
+        return { success: false, error: `no such item (${token})` };
+      }
+      idsToRemove.add(target.id);
+    }
+
+    const nextRules = config.firewall.mangleRules
+      .filter((r) => !idsToRemove.has(r.id))
+      .map((r, idx) => ({ ...r, order: idx }));
+
+    const nextConfig: RouterOsDeviceConfig = {
+      ...config,
+      firewall: {
+        ...config.firewall,
+        mangleRules: nextRules,
+      },
+      lastModifiedAt: new Date().toISOString(),
+    };
+
+    return {
+      success: true,
+      config: nextConfig,
+      message: `Removed ${idsToRemove.size} mangle rule(s).`,
+    };
+  }
+
+  static setMangleRuleDisabled(
+    device: NetworkDevice,
+    idOrIndexList: string,
+    disabled: boolean
+  ): MutationResult {
+    const config = this.ensureConfig(device);
+    const tokens = idOrIndexList
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    if (tokens.length === 0) {
+      return { success: false, error: `syntax error: expected item number to ${disabled ? 'disable' : 'enable'}` };
+    }
+
+    const targetIds = new Set<string>();
+    for (const token of tokens) {
+      const target = config.firewall.mangleRules.find(
+        (r, idx) => r.id === token || String(idx) === token || String(r.order) === token
+      );
+      if (!target) {
+        return { success: false, error: `no such item (${token})` };
+      }
+      targetIds.add(target.id);
+    }
+
+    const now = new Date().toISOString();
+    const nextRules = config.firewall.mangleRules.map((r, idx) =>
+      targetIds.has(r.id) ? { ...r, disabled, order: idx, updatedAt: now } : { ...r, order: idx }
+    );
+
+    return {
+      success: true,
+      config: {
+        ...config,
+        firewall: {
+          ...config.firewall,
+          mangleRules: nextRules,
+        },
+        lastModifiedAt: now,
+      },
+      message: `${disabled ? 'Disabled' : 'Enabled'} mangle rule(s) [${idOrIndexList}].`,
+    };
+  }
+
+  static moveMangleRule(
+    device: NetworkDevice,
+    idOrIndex: string,
+    destinationOrDirection: number | 'up' | 'down'
+  ): MutationResult {
+    const config = this.ensureConfig(device);
+    const rules = [...config.firewall.mangleRules];
+    const fromIdx = rules.findIndex(
+      (r, idx) => r.id === idOrIndex || String(idx) === idOrIndex || String(r.order) === idOrIndex
+    );
+
+    if (fromIdx < 0) {
+      return { success: false, error: `no such item (${idOrIndex})` };
+    }
+
+    const destinationIndex =
+      destinationOrDirection === 'up'
+        ? Math.max(0, fromIdx - 1)
+        : destinationOrDirection === 'down'
+        ? Math.min(rules.length - 1, fromIdx + 1)
+        : destinationOrDirection;
+
+    if (isNaN(destinationIndex) || destinationIndex < 0 || destinationIndex >= rules.length) {
+      return {
+        success: false,
+        error: `failure: destination index ${destinationIndex} out of range (0..${Math.max(0, rules.length - 1)})`,
+      };
+    }
+
+    const [movedRule] = rules.splice(fromIdx, 1);
+    rules.splice(destinationIndex, 0, movedRule);
+
+    const now = new Date().toISOString();
+    const reordered = rules.map((r, idx) => ({
+      ...r,
+      order: idx,
+      updatedAt: r.id === movedRule.id ? now : r.updatedAt,
+    }));
+
+    return {
+      success: true,
+      config: {
+        ...config,
+        firewall: {
+          ...config.firewall,
+          mangleRules: reordered,
+        },
+        lastModifiedAt: now,
+      },
+      message: `Moved mangle rule from #${fromIdx} to #${destinationIndex}.`,
+    };
+  }
+
+  static resetMangleCounters(device: NetworkDevice, idOrIndex?: string): MutationResult {
+    const config = this.ensureConfig(device);
+    const now = new Date().toISOString();
+
+    if (!idOrIndex || idOrIndex === 'all') {
+      const resetAll = config.firewall.mangleRules.map((r, idx) => ({
+        ...r,
+        order: idx,
+        bytes: 0,
+        packets: 0,
+        updatedAt: now,
+      }));
+      return {
+        success: true,
+        config: {
+          ...config,
+          firewall: {
+            ...config.firewall,
+            mangleRules: resetAll,
+          },
+          lastModifiedAt: now,
+        },
+        message: 'Reset counters on all mangle rules.',
+      };
+    }
+
+    const target = config.firewall.mangleRules.find(
+      (r, idx) => r.id === idOrIndex || String(idx) === idOrIndex || String(r.order) === idOrIndex
+    );
+    if (!target) {
+      return { success: false, error: `no such item (${idOrIndex})` };
+    }
+
+    const nextRules = config.firewall.mangleRules.map((r, idx) =>
+      r.id === target.id ? { ...r, order: idx, bytes: 0, packets: 0, updatedAt: now } : { ...r, order: idx }
+    );
+
+    return {
+      success: true,
+      config: {
+        ...config,
+        firewall: {
+          ...config.firewall,
+          mangleRules: nextRules,
+        },
+        lastModifiedAt: now,
+      },
+      message: `Reset counters on mangle rule (${idOrIndex}).`,
+    };
+  }
+
+  // ==========================================
+  // /ROUTING TABLE, /IP FIREWALL ADDRESS-LIST, /INTERFACE LIST, /QUEUE TREE
+  // ==========================================
+
+  static addRoutingTable(
+    device: NetworkDevice,
+    entry: { name: string; fib?: boolean; disabled?: boolean; comment?: string }
+  ): MutationResult {
+    const config = this.ensureConfig(device);
+    const cleanName = entry.name.trim();
+    if (!cleanName) {
+      return { success: false, error: 'failure: routing table name is required' };
+    }
+    const tables = config.routingTables || [];
+    if (tables.some((t) => t.name.toLowerCase() === cleanName.toLowerCase())) {
+      return { success: false, error: `failure: routing table '${cleanName}' already exists` };
+    }
+
+    const newTable: RouterOsRoutingTable = {
+      id: `rt-${Date.now().toString(36)}-${Math.floor(Math.random() * 100)}`,
+      name: cleanName,
+      fib: entry.fib !== undefined ? entry.fib : true,
+      disabled: Boolean(entry.disabled),
+      comment: entry.comment,
+    };
+
+    const nextConfig: RouterOsDeviceConfig = {
+      ...config,
+      routingTables: [...tables, newTable],
+      lastModifiedAt: new Date().toISOString(),
+    };
+
+    // Recompute mangle validity in case a v7 rule was waiting on this routing table
+    nextConfig.firewall.mangleRules = nextConfig.firewall.mangleRules.map((r, idx) => {
+      const check = this.validateMangleRuleState(device, nextConfig, r);
+      return { ...r, order: idx, invalid: !check.valid, invalidReason: check.reason };
+    });
+
+    return {
+      success: true,
+      config: nextConfig,
+      createdId: newTable.id,
+      message: `Created routing table '${cleanName}' (fib=${newTable.fib ? 'yes' : 'no'}).`,
+    };
+  }
+
+  static removeRoutingTable(device: NetworkDevice, idOrName: string): MutationResult {
+    const config = this.ensureConfig(device);
+    const tables = config.routingTables || [];
+    const target = tables.find(
+      (t, idx) => t.id === idOrName || t.name === idOrName || String(idx) === idOrName
+    );
+    if (!target) {
+      return { success: false, error: `no such routing table (${idOrName})` };
+    }
+    if (target.name === 'main' || target.dynamic) {
+      return { success: false, error: `failure: cannot remove builtin routing table '${target.name}'` };
+    }
+
+    const nextConfig: RouterOsDeviceConfig = {
+      ...config,
+      routingTables: tables.filter((t) => t.id !== target.id),
+      lastModifiedAt: new Date().toISOString(),
+    };
+
+    // Recompute mangle validity
+    nextConfig.firewall.mangleRules = nextConfig.firewall.mangleRules.map((r, idx) => {
+      const check = this.validateMangleRuleState(device, nextConfig, r);
+      return { ...r, order: idx, invalid: !check.valid, invalidReason: check.reason };
+    });
+
+    return { success: true, config: nextConfig };
+  }
+
+  static addAddressListEntry(
+    device: NetworkDevice,
+    entry: { list: string; address: string; timeout?: string; comment?: string; dynamic?: boolean; disabled?: boolean }
+  ): MutationResult {
+    const config = this.ensureConfig(device);
+    const listName = entry.list.trim();
+    const addr = entry.address.trim();
+    if (!listName || !addr) {
+      return { success: false, error: 'failure: list and address are required' };
+    }
+    const current = config.firewall.addressLists || [];
+    if (current.some((a) => a.list === listName && a.address === addr)) {
+      return { success: false, error: `failure: already have such entry (${listName}: ${addr})` };
+    }
+
+    const newItem: RouterOsAddressListEntry = {
+      id: `addrlist-${Date.now().toString(36)}-${Math.floor(Math.random() * 100)}`,
+      list: listName,
+      address: addr,
+      timeout: entry.timeout,
+      dynamic: entry.dynamic || false,
+      disabled: Boolean(entry.disabled),
+      comment: entry.comment,
+      creationTime: new Date().toISOString(),
+    };
+
+    return {
+      success: true,
+      config: {
+        ...config,
+        firewall: {
+          ...config.firewall,
+          addressLists: [...current, newItem],
+        },
+        lastModifiedAt: new Date().toISOString(),
+      },
+      createdId: newItem.id,
+    };
+  }
+
+  static removeAddressListEntry(device: NetworkDevice, idOrIndex: string): MutationResult {
+    const config = this.ensureConfig(device);
+    const current = config.firewall.addressLists || [];
+    const target = current.find((a, idx) => a.id === idOrIndex || String(idx) === idOrIndex);
+    if (!target) {
+      return { success: false, error: `no such address-list item (${idOrIndex})` };
+    }
+    return {
+      success: true,
+      config: {
+        ...config,
+        firewall: {
+          ...config.firewall,
+          addressLists: current.filter((a) => a.id !== target.id),
+        },
+        lastModifiedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  static addQueueTree(
+    device: NetworkDevice,
+    entry: {
+      name: string;
+      parent: string;
+      packetMark: string;
+      maxLimitBps: number;
+      limitAtBps?: number;
+      priority?: number;
+      disabled?: boolean;
+      comment?: string;
+    }
+  ): MutationResult {
+    const config = this.ensureConfig(device);
+    const cleanName = entry.name.trim();
+    if (!cleanName || !entry.parent.trim()) {
+      return { success: false, error: 'failure: queue tree name and parent are required' };
+    }
+    const current = config.queueTree || [];
+    if (current.some((q) => q.name.toLowerCase() === cleanName.toLowerCase())) {
+      return { success: false, error: `failure: queue tree '${cleanName}' already exists` };
+    }
+    const newQt: RouterOsQueueTree = {
+      id: `qt-${Date.now().toString(36)}`,
+      name: cleanName,
+      parent: entry.parent.trim(),
+      packetMark: entry.packetMark.trim(),
+      maxLimitBps: entry.maxLimitBps,
+      limitAtBps: entry.limitAtBps,
+      priority: entry.priority || 8,
+      disabled: Boolean(entry.disabled),
+      comment: entry.comment,
+      bytes: 0,
+      packets: 0,
+    };
+    return {
+      success: true,
+      config: {
+        ...config,
+        queueTree: [...current, newQt],
+        lastModifiedAt: new Date().toISOString(),
+      },
+      createdId: newQt.id,
+    };
+  }
+
+  static removeQueueTree(device: NetworkDevice, idOrName: string): MutationResult {
+    const config = this.ensureConfig(device);
+    const current = config.queueTree || [];
+    const target = current.find(
+      (q, idx) => q.id === idOrName || q.name === idOrName || String(idx) === idOrName
+    );
+    if (!target) {
+      return { success: false, error: `no such queue tree item (${idOrName})` };
+    }
+    return {
+      success: true,
+      config: {
+        ...config,
+        queueTree: current.filter((q) => q.id !== target.id),
+        lastModifiedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  // ==========================================
   // /QUEUE SIMPLE OPERATIONS
   // ==========================================
 
   static addSimpleQueue(
     device: NetworkDevice,
-    entry: { name: string; target: string; maxLimitUploadBps: number; maxLimitDownloadBps: number; comment?: string }
+    entry: {
+      name: string;
+      target: string;
+      maxLimitUploadBps: number;
+      maxLimitDownloadBps: number;
+      packetMarks?: string;
+      priority?: number;
+      comment?: string;
+    }
   ): MutationResult {
     const config = this.ensureConfig(device);
 
@@ -946,7 +1790,8 @@ export class RouterOsConfigService {
       target: entry.target,
       maxLimitUploadBps: entry.maxLimitUploadBps,
       maxLimitDownloadBps: entry.maxLimitDownloadBps,
-      priority: 8,
+      packetMarks: entry.packetMarks?.trim() || undefined,
+      priority: entry.priority || 8,
       disabled: false,
       comment: entry.comment,
     };
@@ -1382,13 +2227,43 @@ export class RouterOsConfigService {
     if (cfg.routes.length > 0) {
       rsc += `/ip route\n`;
       cfg.routes.forEach((r) => {
-        const tableAttr = r.routingTable
-          ? cfg.version === 'v7'
-            ? ` routing-table=${r.routingTable}`
-            : ` routing-mark=${r.routingTable}`
-          : '';
-        rsc += `add dst-address=${r.dstAddress} gateway=${r.gateway} distance=${r.distance}${tableAttr}${r.disabled ? ' disabled=yes' : ''}${r.comment ? ` comment="${r.comment}"` : ''}\n`;
+        const tableAttr =
+          r.routingTable && r.routingTable !== 'main'
+            ? cfg.version === 'v7'
+              ? ` routing-table=${r.routingTable}`
+              : ` routing-mark=${r.routingTable}`
+            : r.routingMark && r.routingMark !== 'main'
+            ? cfg.version === 'v7'
+              ? ` routing-table=${r.routingMark}`
+              : ` routing-mark=${r.routingMark}`
+            : '';
+        const checkGwAttr = r.checkGateway && r.checkGateway !== 'none' ? ` check-gateway=${r.checkGateway}` : '';
+        const scopeAttr = r.scope && r.scope !== 30 ? ` scope=${r.scope}` : '';
+        const targetScopeAttr = r.targetScope && r.targetScope !== 10 ? ` target-scope=${r.targetScope}` : '';
+        rsc += `add dst-address=${r.dstAddress} gateway=${r.gateway} distance=${r.distance}${checkGwAttr}${scopeAttr}${targetScopeAttr}${tableAttr}${r.disabled ? ' disabled=yes' : ''}${r.comment ? ` comment="${r.comment}"` : ''}\n`;
       });
+      rsc += `\n`;
+    }
+
+    // Routing Tables (RouterOS v7)
+    if (cfg.version === 'v7' && cfg.routingTables && cfg.routingTables.filter((t) => !t.dynamic && t.name !== 'main').length > 0) {
+      rsc += `/routing table\n`;
+      cfg.routingTables
+        .filter((t) => !t.dynamic && t.name !== 'main')
+        .forEach((t) => {
+          rsc += `add name=${t.name}${t.fib ? ' fib' : ''}${t.disabled ? ' disabled=yes' : ''}${t.comment ? ` comment="${t.comment}"` : ''}\n`;
+        });
+      rsc += `\n`;
+    }
+
+    // Firewall Address Lists
+    if (cfg.firewall.addressLists && cfg.firewall.addressLists.filter((a) => !a.dynamic).length > 0) {
+      rsc += `/ip firewall address-list\n`;
+      cfg.firewall.addressLists
+        .filter((a) => !a.dynamic)
+        .forEach((a) => {
+          rsc += `add list=${a.list} address=${a.address}${a.timeout ? ` timeout=${a.timeout}` : ''}${a.disabled ? ' disabled=yes' : ''}${a.comment ? ` comment="${a.comment}"` : ''}\n`;
+        });
       rsc += `\n`;
     }
 
@@ -1403,7 +2278,11 @@ export class RouterOsConfigService {
         if (f.dstPort) rsc += ` dst-port=${f.dstPort}`;
         if (f.inInterface) rsc += ` in-interface=${f.inInterface}`;
         if (f.outInterface) rsc += ` out-interface=${f.outInterface}`;
+        if (f.srcAddressList) rsc += ` src-address-list=${f.srcAddressList}`;
+        if (f.dstAddressList) rsc += ` dst-address-list=${f.dstAddressList}`;
         if (f.connectionState) rsc += ` connection-state=${f.connectionState}`;
+        if (f.connectionMark) rsc += ` connection-mark=${f.connectionMark}`;
+        if (f.packetMark) rsc += ` packet-mark=${f.packetMark}`;
         if (f.disabled) rsc += ` disabled=yes`;
         if (f.comment) rsc += ` comment="${f.comment}"`;
         rsc += `\n`;
@@ -1421,10 +2300,60 @@ export class RouterOsConfigService {
         if (n.dstAddress) rsc += ` dst-address=${n.dstAddress}`;
         if (n.dstPort) rsc += ` dst-port=${n.dstPort}`;
         if (n.outInterface) rsc += ` out-interface=${n.outInterface}`;
+        if (n.connectionMark) rsc += ` connection-mark=${n.connectionMark}`;
+        if (n.packetMark) rsc += ` packet-mark=${n.packetMark}`;
         if (n.toAddresses) rsc += ` to-addresses=${n.toAddresses}`;
         if (n.toPorts) rsc += ` to-ports=${n.toPorts}`;
         if (n.disabled) rsc += ` disabled=yes`;
         if (n.comment) rsc += ` comment="${n.comment}"`;
+        rsc += `\n`;
+      });
+      rsc += `\n`;
+    }
+
+    // Firewall Mangle
+    if (cfg.firewall.mangleRules && cfg.firewall.mangleRules.length > 0) {
+      rsc += `/ip firewall mangle\n`;
+      cfg.firewall.mangleRules.forEach((m) => {
+        rsc += `add chain=${m.chain} action=${m.action}`;
+        if (m.srcAddress) rsc += ` src-address=${m.srcAddress}`;
+        if (m.dstAddress) rsc += ` dst-address=${m.dstAddress}`;
+        if (m.protocol) rsc += ` protocol=${m.protocol}`;
+        if (m.srcPort) rsc += ` src-port=${m.srcPort}`;
+        if (m.dstPort) rsc += ` dst-port=${m.dstPort}`;
+        if (m.inInterface) rsc += ` in-interface=${m.inInterface}`;
+        if (m.outInterface) rsc += ` out-interface=${m.outInterface}`;
+        if (m.inInterfaceList) rsc += ` in-interface-list=${m.inInterfaceList}`;
+        if (m.outInterfaceList) rsc += ` out-interface-list=${m.outInterfaceList}`;
+        if (m.srcAddressList) rsc += ` src-address-list=${m.srcAddressList}`;
+        if (m.dstAddressList) rsc += ` dst-address-list=${m.dstAddressList}`;
+        if (m.connectionState) rsc += ` connection-state=${m.connectionState}`;
+        if (m.connectionMark) rsc += ` connection-mark=${m.connectionMark}`;
+        if (m.packetMark) rsc += ` packet-mark=${m.packetMark}`;
+        if (m.routingMark) rsc += ` routing-mark=${m.routingMark}`;
+        if (m.packetLength) rsc += ` packet-size=${m.packetLength}`;
+        if (m.dscp !== undefined) rsc += ` dscp=${m.dscp}`;
+        if (m.priority !== undefined) rsc += ` ingress-priority=${m.priority}`;
+        if (m.pcc) rsc += ` per-connection-classifier=${m.pcc}`;
+        if (m.limit) rsc += ` limit=${m.limit}`;
+        if (m.time) rsc += ` time=${m.time}`;
+        if (m.layer7Protocol) rsc += ` layer7-protocol=${m.layer7Protocol}`;
+        if (m.connectionBytes) rsc += ` connection-bytes=${m.connectionBytes}`;
+        if (m.connectionRate) rsc += ` connection-rate=${m.connectionRate}`;
+        if (m.newConnectionMark) rsc += ` new-connection-mark=${m.newConnectionMark}`;
+        if (m.newPacketMark) rsc += ` new-packet-mark=${m.newPacketMark}`;
+        if (m.newRoutingMark) rsc += ` new-routing-mark=${m.newRoutingMark}`;
+        if (m.addressList) rsc += ` address-list=${m.addressList}`;
+        if (m.addressListTimeout) rsc += ` address-list-timeout=${m.addressListTimeout}`;
+        if (m.newDscp !== undefined) rsc += ` new-dscp=${m.newDscp}`;
+        if (m.newMss !== undefined) rsc += ` new-mss=${m.newMss}`;
+        if (m.newTtl !== undefined) rsc += ` new-ttl=${m.newTtl}`;
+        if (m.logPrefix) rsc += ` log-prefix="${m.logPrefix}"`;
+        if (['mark-connection', 'mark-packet', 'mark-routing'].includes(m.action)) {
+          rsc += ` passthrough=${m.passthrough ? 'yes' : 'no'}`;
+        }
+        if (m.disabled) rsc += ` disabled=yes`;
+        if (m.comment) rsc += ` comment="${m.comment}"`;
         rsc += `\n`;
       });
       rsc += `\n`;
@@ -1436,7 +2365,16 @@ export class RouterOsConfigService {
       cfg.queues.forEach((q) => {
         const upM = (q.maxLimitUploadBps / 1_000_000).toFixed(0);
         const downM = (q.maxLimitDownloadBps / 1_000_000).toFixed(0);
-        rsc += `add name=${q.name} target=${q.target} max-limit=${upM}M/${downM}M priority=${q.priority || 8}${q.disabled ? ' disabled=yes' : ''}${q.comment ? ` comment="${q.comment}"` : ''}\n`;
+        rsc += `add name=${q.name} target=${q.target} max-limit=${upM}M/${downM}M${q.packetMarks ? ` packet-marks=${q.packetMarks}` : ''} priority=${q.priority || 8}${q.disabled ? ' disabled=yes' : ''}${q.comment ? ` comment="${q.comment}"` : ''}\n`;
+      });
+      rsc += `\n`;
+    }
+
+    if (cfg.queueTree && cfg.queueTree.length > 0) {
+      rsc += `/queue tree\n`;
+      cfg.queueTree.forEach((qt) => {
+        const maxM = (qt.maxLimitBps / 1_000_000).toFixed(0);
+        rsc += `add name=${qt.name} parent=${qt.parent} packet-mark=${qt.packetMark} max-limit=${maxM}M priority=${qt.priority}${qt.disabled ? ' disabled=yes' : ''}${qt.comment ? ` comment="${qt.comment}"` : ''}\n`;
       });
       rsc += `\n`;
     }
@@ -1507,6 +2445,16 @@ export class RouterOsConfigService {
       version: targetVersion,
       lastModifiedAt: new Date().toISOString(),
     };
+    // Re-evaluate Mangle rules validity for the new RouterOS version
+    nextConfig.firewall.mangleRules = (nextConfig.firewall.mangleRules || []).map((r, idx) => {
+      const check = this.validateMangleRuleState(device, nextConfig, r);
+      return {
+        ...r,
+        order: idx,
+        invalid: !check.valid,
+        invalidReason: check.reason,
+      };
+    });
     return {
       success: true,
       config: nextConfig,
@@ -1566,7 +2514,25 @@ export class RouterOsConfigService {
       }
     }
 
-    // 3. /export version-specific flags: show-sensitive (v7) vs hide-sensitive (v6)
+    // 3. /routing table is only supported in RouterOS v7
+    if (contextPathStr === 'routing table' && version === 'v6') {
+      return {
+        valid: false,
+        error: `syntax error: '/routing table' menu is only supported in RouterOS v7 (in RouterOS v6, routing marks are created directly in '/ip firewall mangle' and '/ip route')`,
+      };
+    }
+
+    // 4. /ip firewall mangle version-specific checks (layer7-protocol in v7)
+    if (contextPathStr === 'ip firewall mangle' && (action === 'add' || action === 'set')) {
+      if (params['layer7-protocol'] !== undefined && version === 'v7') {
+        return {
+          valid: false,
+          error: `syntax error: parameter 'layer7-protocol' is not supported in RouterOS v7 mangle rules`,
+        };
+      }
+    }
+
+    // 5. /export version-specific flags: show-sensitive (v7) vs hide-sensitive (v6)
     if (action === 'export') {
       if (lowerArgs.includes('show-sensitive') && version === 'v6') {
         return {

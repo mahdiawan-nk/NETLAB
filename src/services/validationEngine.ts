@@ -676,6 +676,57 @@ export function validateTopology(
         });
       }
     }
+
+    // D. RouterOS Mangle Rules & Policy Based Routing Validation
+    for (const mRule of cfg.firewall?.mangleRules || []) {
+      if (mRule.disabled) continue;
+      if (mRule.invalid) {
+        diagnostics.push({
+          id: `diag-ros-mangle-invalid-${dev.id}-${mRule.id}`,
+          errorCode: 'ROUTE_NOT_FOUND',
+          severity: 'warning',
+          objectId: dev.id,
+          objectType: 'device',
+          affectedObjects: [dev.id],
+          status: 'DEGRADED',
+          observedCondition: `Invalid Mangle rule (Flag 'I') in /ip firewall mangle chain=${mRule.chain} on ${dev.name}.`,
+          evidence: `Rule '${mRule.comment || mRule.id}' (action=${mRule.action}) is marked invalid (e.g. missing routing table in RouterOS v7).`,
+          probableCause: 'RouterOS v7 requires custom routing tables to be registered in `/routing table` before use in `new-routing-mark`.',
+          impact: 'Invalid Mangle rules are skipped by the RouterOS packet processing engine.',
+          recommendedAction: mRule.newRoutingMark
+            ? `Register the routing table: \`/routing table add name=${mRule.newRoutingMark} fib\`.`
+            : 'Review and fix Mangle rule parameters in Winbox GUI (IP -> Firewall -> Mangle).',
+          timestamp: now,
+        });
+      } else if (mRule.action === 'mark-routing' && mRule.newRoutingMark && mRule.newRoutingMark !== 'main') {
+        const hasMarkedRoute = (cfg.routes || []).some(
+          (r) =>
+            !r.disabled &&
+            ((r.routingTable && r.routingTable.toLowerCase() === mRule.newRoutingMark!.toLowerCase()) ||
+              (r.routingMark && r.routingMark.toLowerCase() === mRule.newRoutingMark!.toLowerCase()))
+        );
+        if (!hasMarkedRoute) {
+          diagnostics.push({
+            id: `diag-ros-mangle-pbr-noroute-${dev.id}-${mRule.id}`,
+            errorCode: 'ROUTE_NOT_FOUND',
+            severity: 'info',
+            objectId: dev.id,
+            objectType: 'device',
+            affectedObjects: [dev.id],
+            status: 'RUN',
+            observedCondition: `Mangle rule marks routing '${mRule.newRoutingMark}' on ${dev.name}, but no route uses this table in /ip route.`,
+            evidence: `Rule '${mRule.comment || mRule.id}' sets new-routing-mark=${mRule.newRoutingMark}, which falls back to 'main' table until a route is added.`,
+            probableCause: 'Policy Based Routing (PBR) Mangle rule created before adding the corresponding gateway route.',
+            impact: 'Packets with this routing mark will fall back to the main routing table.',
+            recommendedAction:
+              cfg.version === 'v7'
+                ? `Add route for table: \`/ip route add dst-address=0.0.0.0/0 gateway=<gw> routing-table=${mRule.newRoutingMark}\`.`
+                : `Add route for mark: \`/ip route add dst-address=0.0.0.0/0 gateway=<gw> routing-mark=${mRule.newRoutingMark}\`.`,
+            timestamp: now,
+          });
+        }
+      }
+    }
   }
 
   return diagnostics;

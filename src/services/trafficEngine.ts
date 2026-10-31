@@ -273,11 +273,70 @@ export function runComprehensiveTrafficSimulation(
     totalGeneratedDownMbps += downKbps / 1000;
     totalGeneratedUpMbps += upKbps / 1000;
 
-    // Route demand to circuits
+    // Check if any core router has active Mangle rules (PCC / PBR / Packet Marks) and Queues
+    const routers = devices.filter((d) => d.category === 'router' && d.routerOsConfig);
+    let hasPccLoadBalancing = false;
+    let routedToBackupViaPbr = false;
+    const activePacketMarks = new Set<string>();
+
+    // Determine target VLAN subnet if workload is scoped to a VLAN
+    const workloadVlan = w.targetVlanId ? (project.vlans || []).find((v) => v.id === w.targetVlanId) : undefined;
+
+    for (const r of routers) {
+      const mangleRules = (r.routerOsConfig?.firewall?.mangleRules || []).filter(
+        (m) => !m.disabled && !m.invalid
+      );
+      for (const m of mangleRules) {
+        if (m.pcc) {
+          hasPccLoadBalancing = true;
+        }
+        // Check if this mangle rule matches the workload's VLAN or general traffic
+        const matchesVlanIface =
+          workloadVlan &&
+          m.inInterface &&
+          m.inInterface.toLowerCase().includes(String(workloadVlan.id));
+        const matchesSubnet =
+          workloadVlan &&
+          m.srcAddress &&
+          workloadVlan.subnet.split('/')[0].slice(0, 7) === m.srcAddress.split('/')[0].slice(0, 7);
+        const isGenericRule = !m.srcAddress && !m.inInterface;
+
+        if (matchesVlanIface || matchesSubnet || isGenericRule) {
+          // Increment live Mangle rule packet and byte counters during simulation tick
+          const estBytesPerTick = Math.max(640, Math.round(((downKbps + upKbps) * 125) / Math.max(1, mangleRules.length)));
+          const estPacketsPerTick = Math.max(1, Math.round(estBytesPerTick / 850));
+          m.bytes = (m.bytes || 0) + estBytesPerTick;
+          m.packets = (m.packets || 0) + estPacketsPerTick;
+
+          if (m.action === 'mark-packet' && m.newPacketMark) {
+            activePacketMarks.add(m.newPacketMark);
+          }
+          if (m.action === 'mark-routing' && m.newRoutingMark) {
+            const markLower = m.newRoutingMark.toLowerCase();
+            if (markLower.includes('isp2') || markLower.includes('backup') || markLower.includes('wan2')) {
+              routedToBackupViaPbr = true;
+            }
+          }
+        }
+      }
+    }
+
+    // Route demand to circuits (respecting Mangle PCC / PBR rules)
     if (primaryCircuit) {
       const cur = circuitDemandMap.get(primaryCircuit.id) || { downKbps: 0, upKbps: 0 };
-      if (backupCircuit && w.trafficPriority === 'low') {
-        // Offload low priority to backup
+      if (backupCircuit && hasPccLoadBalancing) {
+        // PCC Multi-WAN balances load across Primary and Backup WAN circuits
+        const bCur = circuitDemandMap.get(backupCircuit.id) || { downKbps: 0, upKbps: 0 };
+        circuitDemandMap.set(primaryCircuit.id, {
+          downKbps: cur.downKbps + downKbps * 0.5,
+          upKbps: cur.upKbps + upKbps * 0.5,
+        });
+        circuitDemandMap.set(backupCircuit.id, {
+          downKbps: bCur.downKbps + downKbps * 0.5,
+          upKbps: bCur.upKbps + upKbps * 0.5,
+        });
+      } else if (backupCircuit && (routedToBackupViaPbr || w.trafficPriority === 'low')) {
+        // Policy Based Routing (mark-routing) or low-priority offload to secondary WAN
         const bCur = circuitDemandMap.get(backupCircuit.id) || { downKbps: 0, upKbps: 0 };
         circuitDemandMap.set(backupCircuit.id, {
           downKbps: bCur.downKbps + downKbps,
@@ -314,20 +373,28 @@ export function runComprehensiveTrafficSimulation(
       else if (devices[0]) targetDevIds = [devices[0].id];
     }
 
-    // Distribute demand across target devices (with RouterOS Simple Queue enforcement)
+    // Distribute demand across target devices (with RouterOS Simple Queue & Queue Tree enforcement)
     let perDevDownBps = (downKbps * 1000) / Math.max(1, targetDevIds.length);
     let perDevUpBps = (upKbps * 1000) / Math.max(1, targetDevIds.length);
 
-    // Check if any core router has an active RouterOS Simple Queue (/queue simple) capping bandwidth
-    const routers = devices.filter((d) => d.category === 'router' && d.routerOsConfig);
+    // Check if any core router has an active RouterOS Simple Queue (/queue simple) or Queue Tree (/queue tree) capping bandwidth
     for (const r of routers) {
       const activeQueues = (r.routerOsConfig?.queues || []).filter((q) => !q.disabled);
       for (const q of activeQueues) {
+        if (q.packetMarks && !activePacketMarks.has(q.packetMarks)) continue;
         if (q.maxLimitDownloadBps > 0 && perDevDownBps > q.maxLimitDownloadBps) {
           perDevDownBps = q.maxLimitDownloadBps;
         }
         if (q.maxLimitUploadBps > 0 && perDevUpBps > q.maxLimitUploadBps) {
           perDevUpBps = q.maxLimitUploadBps;
+        }
+      }
+
+      const activeQueueTrees = (r.routerOsConfig?.queueTree || []).filter((qt) => !qt.disabled);
+      for (const qt of activeQueueTrees) {
+        if (qt.packetMark && !activePacketMarks.has(qt.packetMark)) continue;
+        if (qt.maxLimitBps > 0 && perDevDownBps > qt.maxLimitBps) {
+          perDevDownBps = qt.maxLimitBps;
         }
       }
     }
@@ -499,12 +566,15 @@ export function runComprehensiveTrafficSimulation(
     const routingThroughputMbps = isRouter ? 4500 : 1000;
     const forwardingRateMpps = isSwitch ? 45 : 12;
 
-    // CPU estimation (including RouterOS Firewall Filter, NAT & Simple Queue processing overhead)
+    // CPU estimation (including RouterOS Firewall Filter, NAT, Mangle & Simple Queue/Queue Tree processing overhead)
     const activeFilterCount = (dev.routerOsConfig?.firewall?.filterRules || []).filter((r) => !r.disabled).length;
     const activeNatCount = (dev.routerOsConfig?.firewall?.natRules || []).filter((r) => !r.disabled).length;
-    const activeQueueCount = (dev.routerOsConfig?.queues || []).filter((q) => !q.disabled).length;
+    const activeMangleCount = (dev.routerOsConfig?.firewall?.mangleRules || []).filter((r) => !r.disabled).length;
+    const activeQueueCount =
+      (dev.routerOsConfig?.queues || []).filter((q) => !q.disabled).length +
+      (dev.routerOsConfig?.queueTree || []).filter((qt) => !qt.disabled).length;
     const rosRuleCpuOverhead = isRouter
-      ? activeFilterCount * 1.2 + activeNatCount * 1.5 + activeQueueCount * 2.5
+      ? activeFilterCount * 1.2 + activeNatCount * 1.5 + activeMangleCount * 1.4 + activeQueueCount * 2.5
       : 0;
 
     const baseCpu = isRouter ? 10 : 5;

@@ -1,5 +1,5 @@
 import { NetworkDevice, NetworkProject } from '../types/network';
-import { RouterOsDeviceConfig, RouterOsVersion } from '../types/routerOs';
+import { MangleAction, MangleChain, MangleRule, RouterOsDeviceConfig } from '../types/routerOs';
 import { RouterOsConfigService, MutationResult } from './routerOsConfigService';
 import { simulatePacketTrace } from './simulationEngine';
 
@@ -41,6 +41,90 @@ export class RouterOsCliEngine {
       }
     }
     return params;
+  }
+
+  private static parseMangleRuleParams(
+    params: Record<string, string>,
+    isUpdate = false
+  ): Partial<MangleRule> & { placeBefore?: number } {
+    const out: Partial<MangleRule> & { placeBefore?: number } = {};
+
+    if (params['chain'] !== undefined) out.chain = params['chain'] as MangleChain;
+    else if (!isUpdate) out.chain = 'prerouting';
+
+    if (params['action'] !== undefined) out.action = params['action'] as MangleAction;
+    else if (!isUpdate) out.action = 'accept';
+
+    if (params['src-address'] !== undefined) out.srcAddress = params['src-address'];
+    if (params['dst-address'] !== undefined) out.dstAddress = params['dst-address'];
+    if (params['protocol'] !== undefined) out.protocol = params['protocol'] as any;
+    if (params['src-port'] !== undefined) out.srcPort = params['src-port'];
+    if (params['dst-port'] !== undefined) out.dstPort = params['dst-port'];
+    if (params['in-interface'] !== undefined) out.inInterface = params['in-interface'];
+    if (params['out-interface'] !== undefined) out.outInterface = params['out-interface'];
+    if (params['in-interface-list'] !== undefined) out.inInterfaceList = params['in-interface-list'];
+    if (params['out-interface-list'] !== undefined) out.outInterfaceList = params['out-interface-list'];
+
+    if (params['src-address-list'] !== undefined) out.srcAddressList = params['src-address-list'];
+    if (params['dst-address-list'] !== undefined) out.dstAddressList = params['dst-address-list'];
+    if (params['connection-state'] !== undefined) out.connectionState = params['connection-state'];
+    if (params['connection-mark'] !== undefined) out.connectionMark = params['connection-mark'];
+    if (params['packet-mark'] !== undefined) out.packetMark = params['packet-mark'];
+    if (params['routing-mark'] !== undefined) out.routingMark = params['routing-mark'];
+
+    const pktLen = params['packet-length'] ?? params['packet-size'];
+    if (pktLen !== undefined) out.packetLength = pktLen;
+
+    if (params['dscp'] !== undefined) {
+      const parsedDscp = parseInt(params['dscp'], 10);
+      if (!isNaN(parsedDscp)) out.dscp = parsedDscp;
+    }
+
+    const prio = params['priority'] ?? params['ingress-priority'];
+    if (prio !== undefined) {
+      const parsedPrio = parseInt(prio, 10);
+      if (!isNaN(parsedPrio)) out.priority = parsedPrio;
+    }
+
+    const pcc = params['per-connection-classifier'] ?? params['pcc'];
+    if (pcc !== undefined) out.pcc = pcc;
+
+    if (params['limit'] !== undefined) out.limit = params['limit'];
+    if (params['time'] !== undefined) out.time = params['time'];
+    if (params['layer7-protocol'] !== undefined) out.layer7Protocol = params['layer7-protocol'];
+    if (params['connection-bytes'] !== undefined) out.connectionBytes = params['connection-bytes'];
+    if (params['connection-rate'] !== undefined) out.connectionRate = params['connection-rate'];
+
+    if (params['new-connection-mark'] !== undefined) out.newConnectionMark = params['new-connection-mark'];
+    if (params['new-packet-mark'] !== undefined) out.newPacketMark = params['new-packet-mark'];
+    if (params['new-routing-mark'] !== undefined) out.newRoutingMark = params['new-routing-mark'];
+    if (params['address-list'] !== undefined) out.addressList = params['address-list'];
+    if (params['address-list-timeout'] !== undefined) out.addressListTimeout = params['address-list-timeout'];
+
+    if (params['new-dscp'] !== undefined) {
+      const parsedNewDscp = parseInt(params['new-dscp'], 10);
+      if (!isNaN(parsedNewDscp)) out.newDscp = parsedNewDscp;
+    }
+    if (params['new-mss'] !== undefined) {
+      const parsedNewMss = parseInt(params['new-mss'], 10);
+      if (!isNaN(parsedNewMss)) out.newMss = parsedNewMss;
+    }
+    if (params['new-ttl'] !== undefined) out.newTtl = params['new-ttl'];
+    if (params['log-prefix'] !== undefined) out.logPrefix = params['log-prefix'];
+
+    if (params['passthrough'] !== undefined) {
+      out.passthrough = params['passthrough'].toLowerCase() !== 'no' && params['passthrough'].toLowerCase() !== 'false';
+    }
+    if (params['comment'] !== undefined) out.comment = params['comment'];
+    if (params['disabled'] !== undefined) {
+      out.disabled = params['disabled'].toLowerCase() === 'yes' || params['disabled'].toLowerCase() === 'true';
+    }
+    if (params['place-before'] !== undefined) {
+      const pb = parseInt(params['place-before'], 10);
+      if (!isNaN(pb)) out.placeBefore = pb;
+    }
+
+    return out;
   }
 
   /**
@@ -100,6 +184,8 @@ export class RouterOsCliEngine {
       'interface bridge',
       'interface bridge port',
       'interface vlan',
+      'interface list',
+      'interface list member',
       'ip',
       'ip address',
       'ip route',
@@ -111,8 +197,14 @@ export class RouterOsCliEngine {
       'ip firewall',
       'ip firewall filter',
       'ip firewall nat',
+      'ip firewall mangle',
+      'ip firewall address-list',
+      'ip firewall connection',
+      'routing',
+      'routing table',
       'queue',
       'queue simple',
+      'queue tree',
       'system',
       'system identity',
       'system resource',
@@ -232,7 +324,7 @@ export class RouterOsCliEngine {
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
       if (action === 'remove' || action === 'rm') {
-        const id = actionArgs[0];
+        const id = actionArgs[0] || params['numbers'];
         if (!id) return { output: 'syntax error: expected item number or id to remove', nextPath: effectivePath, error: true };
         const res = mutateConfig('Remove IP Address', (dev) =>
           RouterOsConfigService.removeIpAddress(dev, id)
@@ -241,7 +333,7 @@ export class RouterOsCliEngine {
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
       if (action === 'set') {
-        const id = actionArgs[0];
+        const id = (actionArgs[0] && !actionArgs[0].includes('=') ? actionArgs[0] : undefined) || params['numbers'];
         if (!id) return { output: 'syntax error: expected item number or id to set', nextPath: effectivePath, error: true };
         const res = mutateConfig('Set IP Address', (dev) =>
           RouterOsConfigService.setIpAddress(dev, id, {
@@ -255,7 +347,7 @@ export class RouterOsCliEngine {
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
       if (action === 'disable' || action === 'enable') {
-        const id = actionArgs[0];
+        const id = actionArgs[0] || params['numbers'];
         if (!id) return { output: `syntax error: expected item number to ${action}`, nextPath: effectivePath, error: true };
         const res = mutateConfig(`${action.toUpperCase()} IP Address`, (dev) =>
           RouterOsConfigService.setIpAddress(dev, id, { disabled: action === 'disable' })
@@ -379,6 +471,27 @@ export class RouterOsCliEngine {
       }
     }
 
+    // 5B. /INTERFACE LIST & /INTERFACE LIST MEMBER
+    if (contextPathStr === 'interface list') {
+      if (action === 'print' || action === 'pr') {
+        let out = `Flags: * - builtin\n #   NAME            COMMENT\n`;
+        (config.interfaceLists || []).forEach((l, idx) => {
+          out += ` ${String(idx).padEnd(3)} ${l.name.padEnd(15)} ${l.comment || ''}\n`;
+        });
+        return { output: out, nextPath: effectivePath };
+      }
+    }
+    if (contextPathStr === 'interface list member') {
+      if (action === 'print' || action === 'pr') {
+        let out = `Flags: X - disabled\n #   LIST            INTERFACE\n`;
+        (config.interfaceListMembers || []).forEach((m, idx) => {
+          const flag = m.disabled ? 'X ' : '  ';
+          out += `${flag}${String(idx).padEnd(3)} ${m.list.padEnd(15)} ${m.interface}\n`;
+        });
+        return { output: out, nextPath: effectivePath };
+      }
+    }
+
     // 6. /IP ROUTE
     if (contextPathStr === 'ip route') {
       if (action === 'print' || action === 'pr') {
@@ -408,10 +521,38 @@ export class RouterOsCliEngine {
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
       if (action === 'remove' || action === 'rm') {
-        const id = actionArgs[0];
+        const id = actionArgs[0] || params['numbers'];
         if (!id) return { output: 'syntax error: expected route index', nextPath: effectivePath, error: true };
         const res = mutateConfig('Remove Route', (dev) => RouterOsConfigService.removeRoute(dev, id));
         if (!res.success) return { output: res.error || 'Failed to remove', nextPath: effectivePath, error: true };
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+    }
+
+    // 6B. /ROUTING TABLE
+    if (contextPathStr === 'routing table') {
+      if (action === 'print' || action === 'pr') {
+        return { output: this.printRoutingTables(config), nextPath: effectivePath };
+      }
+      if (action === 'add') {
+        const name = params['name'];
+        const fib = params['fib'] !== 'no';
+        const comment = params['comment'];
+        const disabled = params['disabled'] === 'yes';
+        if (!name) {
+          return { output: 'failure: name parameter required (e.g. /routing table add name=ke-isp2 fib)', nextPath: effectivePath, error: true };
+        }
+        const res = mutateConfig(`Add Routing Table (${name})`, (dev) =>
+          RouterOsConfigService.addRoutingTable(dev, { name, fib, comment, disabled })
+        );
+        if (!res.success) return { output: res.error || 'Failed to add routing table', nextPath: effectivePath, error: true };
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+      if (action === 'remove' || action === 'rm') {
+        const id = actionArgs[0] || params['numbers'];
+        if (!id) return { output: 'syntax error: expected routing table index or name', nextPath: effectivePath, error: true };
+        const res = mutateConfig('Remove Routing Table', (dev) => RouterOsConfigService.removeRoutingTable(dev, id));
+        if (!res.success) return { output: res.error || 'Failed to remove routing table', nextPath: effectivePath, error: true };
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
     }
@@ -429,6 +570,11 @@ export class RouterOsCliEngine {
         const dstAddress = params['dst-address'];
         const inInterface = params['in-interface'];
         const outInterface = params['out-interface'];
+        const connectionMark = params['connection-mark'];
+        const packetMark = params['packet-mark'];
+        const routingMark = params['routing-mark'];
+        const srcAddressList = params['src-address-list'];
+        const dstAddressList = params['dst-address-list'];
         const comment = params['comment'];
 
         const res = mutateConfig('Add Firewall Filter Rule', (dev) =>
@@ -440,7 +586,12 @@ export class RouterOsCliEngine {
             dstAddress,
             inInterface,
             outInterface,
-            disabled: false,
+            connectionMark,
+            packetMark,
+            routingMark,
+            srcAddressList,
+            dstAddressList,
+            disabled: params['disabled'] === 'yes',
             comment,
           })
         );
@@ -448,7 +599,7 @@ export class RouterOsCliEngine {
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
       if (action === 'remove' || action === 'rm') {
-        const id = actionArgs[0];
+        const id = actionArgs[0] || params['numbers'];
         if (!id) return { output: 'syntax error: expected rule index', nextPath: effectivePath, error: true };
         const res = mutateConfig('Remove Firewall Rule', (dev) => RouterOsConfigService.removeFirewallRule(dev, id));
         if (!res.success) return { output: res.error || 'Failed to remove', nextPath: effectivePath, error: true };
@@ -466,6 +617,11 @@ export class RouterOsCliEngine {
         const act = (params['action'] || 'masquerade') as any;
         const outInterface = params['out-interface'];
         const toAddresses = params['to-addresses'];
+        const connectionMark = params['connection-mark'];
+        const packetMark = params['packet-mark'];
+        const routingMark = params['routing-mark'];
+        const srcAddressList = params['src-address-list'];
+        const dstAddressList = params['dst-address-list'];
         const comment = params['comment'];
 
         const res = mutateConfig('Add NAT Rule', (dev) =>
@@ -474,7 +630,12 @@ export class RouterOsCliEngine {
             action: act,
             outInterface,
             toAddresses,
-            disabled: false,
+            connectionMark,
+            packetMark,
+            routingMark,
+            srcAddressList,
+            dstAddressList,
+            disabled: params['disabled'] === 'yes',
             comment,
           })
         );
@@ -482,11 +643,162 @@ export class RouterOsCliEngine {
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
       if (action === 'remove' || action === 'rm') {
-        const id = actionArgs[0];
+        const id = actionArgs[0] || params['numbers'];
         if (!id) return { output: 'syntax error: expected nat rule index', nextPath: effectivePath, error: true };
         const res = mutateConfig('Remove NAT Rule', (dev) => RouterOsConfigService.removeNatRule(dev, id));
         if (!res.success) return { output: res.error || 'Failed to remove', nextPath: effectivePath, error: true };
         return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+    }
+
+    // 8B. /IP FIREWALL MANGLE
+    if (contextPathStr === 'ip firewall mangle') {
+      if (action === 'print' || action === 'pr') {
+        const subArg = (actionArgs[0] || '').toLowerCase();
+        if (subArg === 'detail' || subArg === 'det') {
+          return { output: this.printFirewallMangleDetail(config), nextPath: effectivePath };
+        }
+        if (subArg === 'stats' || subArg === 'st') {
+          return { output: this.printFirewallMangleStats(config), nextPath: effectivePath };
+        }
+        return { output: this.printFirewallMangle(config), nextPath: effectivePath };
+      }
+
+      if (action === 'add') {
+        const ruleParams = this.parseMangleRuleParams(params, false);
+        const res = mutateConfig(`Add Mangle Rule (${ruleParams.chain} -> ${ruleParams.action})`, (dev) =>
+          RouterOsConfigService.addMangleRule(dev, ruleParams as any)
+        );
+        if (!res.success) {
+          return { output: res.error || 'Failed to add mangle rule', nextPath: effectivePath, error: true };
+        }
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+
+      if (action === 'set') {
+        const id = (actionArgs[0] && !actionArgs[0].includes('=') ? actionArgs[0] : undefined) || params['numbers'];
+        if (!id) {
+          return { output: 'syntax error: expected mangle rule number or id to set', nextPath: effectivePath, error: true };
+        }
+        const updates = this.parseMangleRuleParams(params, true);
+        const res = mutateConfig(`Update Mangle Rule #${id}`, (dev) =>
+          RouterOsConfigService.updateMangleRule(dev, id, updates)
+        );
+        if (!res.success) {
+          return { output: res.error || 'Failed to update mangle rule', nextPath: effectivePath, error: true };
+        }
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+
+      if (action === 'remove' || action === 'rm') {
+        const id = (actionArgs[0] && !actionArgs[0].includes('=') ? actionArgs[0] : undefined) || params['numbers'];
+        if (!id) {
+          return { output: 'syntax error: expected mangle rule number or id to remove', nextPath: effectivePath, error: true };
+        }
+        const res = mutateConfig(`Remove Mangle Rule #${id}`, (dev) =>
+          RouterOsConfigService.removeMangleRule(dev, id)
+        );
+        if (!res.success) {
+          return { output: res.error || 'Failed to remove mangle rule', nextPath: effectivePath, error: true };
+        }
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+
+      if (action === 'enable' || action === 'disable') {
+        const id = (actionArgs[0] && !actionArgs[0].includes('=') ? actionArgs[0] : undefined) || params['numbers'];
+        if (!id) {
+          return { output: `syntax error: expected mangle rule number or id to ${action}`, nextPath: effectivePath, error: true };
+        }
+        const res = mutateConfig(`${action.toUpperCase()} Mangle Rule #${id}`, (dev) =>
+          RouterOsConfigService.setMangleRuleDisabled(dev, id, action === 'disable')
+        );
+        if (!res.success) {
+          return { output: res.error || `Failed to ${action} mangle rule`, nextPath: effectivePath, error: true };
+        }
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+
+      if (action === 'move') {
+        const nonKvArgs = actionArgs.filter((a) => !a.includes('='));
+        const idOrIdx = nonKvArgs[0] || params['numbers'];
+        const destStr = nonKvArgs[1] ?? params['destination'];
+        if (!idOrIdx || destStr === undefined) {
+          return {
+            output: 'syntax error: expected rule index and destination index (e.g. move 2 0)',
+            nextPath: effectivePath,
+            error: true,
+          };
+        }
+        const destIdx = parseInt(destStr, 10);
+        if (isNaN(destIdx)) {
+          return { output: 'failure: invalid destination index', nextPath: effectivePath, error: true };
+        }
+        const res = mutateConfig(`Move Mangle Rule #${idOrIdx} to ${destIdx}`, (dev) =>
+          RouterOsConfigService.moveMangleRule(dev, idOrIdx, destIdx)
+        );
+        if (!res.success) {
+          return { output: res.error || 'Failed to move mangle rule', nextPath: effectivePath, error: true };
+        }
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+
+      if (action === 'reset-counters') {
+        const id = (actionArgs[0] && !actionArgs[0].includes('=') ? actionArgs[0] : undefined) || params['numbers'];
+        const res = mutateConfig(id ? `Reset Mangle Rule #${id} Counters` : 'Reset All Mangle Counters', (dev) =>
+          RouterOsConfigService.resetMangleCounters(dev, id)
+        );
+        if (!res.success) {
+          return { output: res.error || 'Failed to reset counters', nextPath: effectivePath, error: true };
+        }
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+
+      if (action === 'reset-counters-all') {
+        const res = mutateConfig('Reset All Mangle Counters', (dev) =>
+          RouterOsConfigService.resetMangleCounters(dev)
+        );
+        if (!res.success) {
+          return { output: res.error || 'Failed to reset all counters', nextPath: effectivePath, error: true };
+        }
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+    }
+
+    // 8C. /IP FIREWALL ADDRESS-LIST
+    if (contextPathStr === 'ip firewall address-list') {
+      if (action === 'print' || action === 'pr') {
+        return { output: this.printAddressLists(config), nextPath: effectivePath };
+      }
+      if (action === 'add') {
+        const list = params['list'];
+        const address = params['address'];
+        const timeout = params['timeout'];
+        const comment = params['comment'];
+        const disabled = params['disabled'] === 'yes';
+        if (!list || !address) {
+          return { output: 'failure: list and address parameters are required', nextPath: effectivePath, error: true };
+        }
+        const res = mutateConfig(`Add Address List (${list}: ${address})`, (dev) =>
+          RouterOsConfigService.addAddressListEntry(dev, { list, address, timeout, comment, disabled })
+        );
+        if (!res.success) return { output: res.error || 'Failed to add address-list entry', nextPath: effectivePath, error: true };
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+      if (action === 'remove' || action === 'rm') {
+        const id = actionArgs[0] || params['numbers'];
+        if (!id) return { output: 'syntax error: expected address-list entry index', nextPath: effectivePath, error: true };
+        const res = mutateConfig('Remove Address List Entry', (dev) =>
+          RouterOsConfigService.removeAddressListEntry(dev, id)
+        );
+        if (!res.success) return { output: res.error || 'Failed to remove entry', nextPath: effectivePath, error: true };
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+    }
+
+    // 8D. /IP FIREWALL CONNECTION
+    if (contextPathStr === 'ip firewall connection') {
+      if (action === 'print' || action === 'pr') {
+        return { output: this.printConnections(config), nextPath: effectivePath };
       }
     }
 
@@ -497,17 +809,20 @@ export class RouterOsCliEngine {
       }
       if (action === 'add') {
         const name = params['name'];
-        const target = params['target'];
+        const target = params['target'] || '0.0.0.0/0';
         const maxLimit = params['max-limit']; // e.g. 5M/10M (upload/download)
+        const packetMarks = params['packet-marks'] || params['packet-mark'];
+        const priorityStr = params['priority'];
+        const priority = priorityStr ? parseInt(priorityStr.split('/')[0], 10) : 8;
         const comment = params['comment'];
 
-        if (!name || !target || !maxLimit) {
-          return { output: 'failure: name, target, and max-limit (e.g. 5M/10M) are required', nextPath: effectivePath, error: true };
+        if (!name || !maxLimit) {
+          return { output: 'failure: name and max-limit (e.g. 5M/10M) are required', nextPath: effectivePath, error: true };
         }
 
         const [upStr, downStr] = maxLimit.split('/');
         const upBps = this.parseSpeedStringToBps(upStr || '10M');
-        const downBps = this.parseSpeedStringToBps(downStr || '10M');
+        const downBps = this.parseSpeedStringToBps(downStr || upStr || '10M');
 
         const res = mutateConfig('Add Simple Queue', (dev) =>
           RouterOsConfigService.addSimpleQueue(dev, {
@@ -515,6 +830,8 @@ export class RouterOsCliEngine {
             target,
             maxLimitUploadBps: upBps,
             maxLimitDownloadBps: downBps,
+            packetMarks,
+            priority: isNaN(priority) ? 8 : priority,
             comment,
           })
         );
@@ -522,10 +839,52 @@ export class RouterOsCliEngine {
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
       if (action === 'remove' || action === 'rm') {
-        const id = actionArgs[0];
+        const id = actionArgs[0] || params['numbers'];
         if (!id) return { output: 'syntax error: expected queue name or index', nextPath: effectivePath, error: true };
         const res = mutateConfig('Remove Queue', (dev) => RouterOsConfigService.removeSimpleQueue(dev, id));
         if (!res.success) return { output: res.error || 'Failed to remove', nextPath: effectivePath, error: true };
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+    }
+
+    // 9B. /QUEUE TREE
+    if (contextPathStr === 'queue tree') {
+      if (action === 'print' || action === 'pr') {
+        return { output: this.printQueueTree(config), nextPath: effectivePath };
+      }
+      if (action === 'add') {
+        const name = params['name'];
+        const parent = params['parent'] || 'global';
+        const packetMark = params['packet-mark'] || params['packet-marks'];
+        const maxLimitStr = params['max-limit'] || '100M';
+        const priority = params['priority'] ? parseInt(params['priority'], 10) : 8;
+        const comment = params['comment'];
+        const disabled = params['disabled'] === 'yes';
+
+        if (!name) {
+          return { output: 'failure: name parameter is required', nextPath: effectivePath, error: true };
+        }
+
+        const maxLimitBps = this.parseSpeedStringToBps(maxLimitStr);
+        const res = mutateConfig(`Add Queue Tree (${name})`, (dev) =>
+          RouterOsConfigService.addQueueTree(dev, {
+            name,
+            parent,
+            packetMark,
+            maxLimitBps,
+            priority: isNaN(priority) ? 8 : priority,
+            disabled,
+            comment,
+          })
+        );
+        if (!res.success) return { output: res.error || 'Failed to add queue tree', nextPath: effectivePath, error: true };
+        return { output: '', nextPath: effectivePath, newConfig: res.config };
+      }
+      if (action === 'remove' || action === 'rm') {
+        const id = actionArgs[0] || params['numbers'];
+        if (!id) return { output: 'syntax error: expected queue tree name or index', nextPath: effectivePath, error: true };
+        const res = mutateConfig('Remove Queue Tree', (dev) => RouterOsConfigService.removeQueueTree(dev, id));
+        if (!res.success) return { output: res.error || 'Failed to remove queue tree', nextPath: effectivePath, error: true };
         return { output: '', nextPath: effectivePath, newConfig: res.config };
       }
     }
@@ -553,16 +912,16 @@ export class RouterOsCliEngine {
           output: `                   uptime: 3d14h22m
                   version: ${res.version}
                build-time: ${res.buildTime}
-             free-memory: ${formatMb(res.freeMemoryBytes)}
-            total-memory: ${formatMb(res.totalMemoryBytes)}
-                     cpu: ${res.cpuModel}
-               cpu-count: ${res.cpuCount}
-           cpu-frequency: ${res.cpuFrequencyMhz}MHz
-                cpu-load: ${res.cpuLoadPercent}%
-          free-hdd-space: ${formatMb(res.freeHddSpaceBytes)}
-         total-hdd-space: ${formatMb(res.totalHddSpaceBytes)}
-            architecture: ${res.architecture}
-              board-name: ${res.boardName}`,
+              free-memory: ${formatMb(res.freeMemoryBytes)}
+             total-memory: ${formatMb(res.totalMemoryBytes)}
+                      cpu: ${res.cpuModel}
+                cpu-count: ${res.cpuCount}
+            cpu-frequency: ${res.cpuFrequencyMhz}MHz
+                 cpu-load: ${res.cpuLoadPercent}%
+           free-hdd-space: ${formatMb(res.freeHddSpaceBytes)}
+          total-hdd-space: ${formatMb(res.totalHddSpaceBytes)}
+             architecture: ${res.architecture}
+               board-name: ${res.boardName}`,
           nextPath: effectivePath,
         };
       }
@@ -839,8 +1198,21 @@ export class RouterOsCliEngine {
     out += ` #      DST-ADDRESS        GATEWAY         DISTANCE  ${tableHeader}\n`;
     config.routes.forEach((r, idx) => {
       const flag = `${r.disabled ? 'X' : ' '}${r.active ? 'A' : ' '}S`;
-      const tbl = r.routingTable || 'main';
+      const tbl = r.routingTable || r.routingMark || 'main';
       out += `${flag} ${String(idx).padEnd(4)} ${r.dstAddress.padEnd(18)} ${r.gateway.padEnd(15)} ${String(r.distance).padEnd(9)} ${tbl}\n`;
+    });
+    return out;
+  }
+
+  private static printRoutingTables(config: RouterOsDeviceConfig): string {
+    const tables = config.routingTables || [];
+    if (tables.length === 0) return 'No routing tables configured.';
+    let out = `Flags: D - dynamic, X - disabled, I - invalid\n`;
+    out += ` #   NAME                 FIB\n`;
+    tables.forEach((t, idx) => {
+      const flag = `${t.dynamic ? 'D' : ' '}${t.disabled ? 'X' : ' '}`;
+      const comment = t.comment ? `;;; ${t.comment}\n` : '';
+      out += `${comment}${flag} ${String(idx).padEnd(3)} ${t.name.padEnd(20)} ${t.fib ? 'yes' : 'no'}\n`;
     });
     return out;
   }
@@ -869,15 +1241,147 @@ export class RouterOsCliEngine {
     return out;
   }
 
+  private static printFirewallMangle(config: RouterOsDeviceConfig): string {
+    const rules = config.firewall.mangleRules || [];
+    if (rules.length === 0) return 'Flags: X - disabled, I - invalid; D - dynamic\n(0 rules)';
+    let out = `Flags: X - disabled, I - invalid; D - dynamic\n`;
+    out += ` #    CHAIN        ACTION                   SRC-ADDRESS       DST-ADDRESS       IN-INTERFACE   MARK/TARGET\n`;
+    rules.forEach((m, idx) => {
+      const flag = `${m.disabled ? 'X' : ' '}${m.invalid ? 'I' : ' '}${m.dynamic ? 'D' : ' '}`;
+      const comment = m.comment ? ` ${String(idx).padStart(2)}  ;;; ${m.comment}\n` : '';
+      const markTarget =
+        m.newConnectionMark ||
+        m.newPacketMark ||
+        m.newRoutingMark ||
+        m.addressList ||
+        (m.newDscp !== undefined ? `dscp:${m.newDscp}` : '') ||
+        (m.newMss !== undefined ? `mss:${m.newMss}` : '') ||
+        m.newTtl ||
+        m.logPrefix ||
+        (m.passthrough === false ? 'passthrough=no' : 'passthrough=yes');
+      if (comment) {
+        out += comment;
+        out += `    ${flag} ${m.chain.padEnd(12)} ${m.action.padEnd(24)} ${(m.srcAddress || m.srcAddressList || '*').padEnd(17)} ${(m.dstAddress || m.dstAddressList || '*').padEnd(17)} ${(m.inInterface || m.inInterfaceList || '*').padEnd(14)} ${markTarget}\n`;
+      } else {
+        out += ` ${String(idx).padStart(2)} ${flag} ${m.chain.padEnd(12)} ${m.action.padEnd(24)} ${(m.srcAddress || m.srcAddressList || '*').padEnd(17)} ${(m.dstAddress || m.dstAddressList || '*').padEnd(17)} ${(m.inInterface || m.inInterfaceList || '*').padEnd(14)} ${markTarget}\n`;
+      }
+    });
+    return out;
+  }
+
+  private static printFirewallMangleDetail(config: RouterOsDeviceConfig): string {
+    const rules = config.firewall.mangleRules || [];
+    if (rules.length === 0) return 'Flags: X - disabled, I - invalid; D - dynamic\n';
+    let out = `Flags: X - disabled, I - invalid; D - dynamic\n`;
+    rules.forEach((m, idx) => {
+      const flag = `${m.disabled ? 'X' : ' '}${m.invalid ? 'I' : ' '}${m.dynamic ? 'D' : ' '}`.trim();
+      if (m.comment) {
+        out += ` ${idx} ${flag ? flag + ' ' : ''};;; ${m.comment}\n     `;
+      } else {
+        out += ` ${idx} ${flag ? flag + ' ' : ''}  `;
+      }
+      const kv: string[] = [`chain=${m.chain}`, `action=${m.action}`];
+      if (m.srcAddress) kv.push(`src-address=${m.srcAddress}`);
+      if (m.dstAddress) kv.push(`dst-address=${m.dstAddress}`);
+      if (m.protocol) kv.push(`protocol=${m.protocol}`);
+      if (m.srcPort) kv.push(`src-port=${m.srcPort}`);
+      if (m.dstPort) kv.push(`dst-port=${m.dstPort}`);
+      if (m.inInterface) kv.push(`in-interface=${m.inInterface}`);
+      if (m.outInterface) kv.push(`out-interface=${m.outInterface}`);
+      if (m.inInterfaceList) kv.push(`in-interface-list=${m.inInterfaceList}`);
+      if (m.outInterfaceList) kv.push(`out-interface-list=${m.outInterfaceList}`);
+      if (m.srcAddressList) kv.push(`src-address-list=${m.srcAddressList}`);
+      if (m.dstAddressList) kv.push(`dst-address-list=${m.dstAddressList}`);
+      if (m.connectionState) kv.push(`connection-state=${m.connectionState}`);
+      if (m.connectionMark) kv.push(`connection-mark=${m.connectionMark}`);
+      if (m.packetMark) kv.push(`packet-mark=${m.packetMark}`);
+      if (m.routingMark) kv.push(`routing-mark=${m.routingMark}`);
+      if (m.packetLength) kv.push(`packet-length=${m.packetLength}`);
+      if (m.dscp !== undefined) kv.push(`dscp=${m.dscp}`);
+      if (m.priority !== undefined) kv.push(`priority=${m.priority}`);
+      if (m.pcc) kv.push(`per-connection-classifier=${m.pcc}`);
+      if (m.limit) kv.push(`limit=${m.limit}`);
+      if (m.time) kv.push(`time=${m.time}`);
+      if (m.layer7Protocol) kv.push(`layer7-protocol=${m.layer7Protocol}`);
+      if (m.connectionBytes) kv.push(`connection-bytes=${m.connectionBytes}`);
+      if (m.connectionRate) kv.push(`connection-rate=${m.connectionRate}`);
+      if (m.newConnectionMark) kv.push(`new-connection-mark=${m.newConnectionMark}`);
+      if (m.newPacketMark) kv.push(`new-packet-mark=${m.newPacketMark}`);
+      if (m.newRoutingMark) kv.push(`new-routing-mark=${m.newRoutingMark}`);
+      if (m.addressList) kv.push(`address-list=${m.addressList}`);
+      if (m.addressListTimeout) kv.push(`address-list-timeout=${m.addressListTimeout}`);
+      if (m.newDscp !== undefined) kv.push(`new-dscp=${m.newDscp}`);
+      if (m.newMss !== undefined) kv.push(`new-mss=${m.newMss}`);
+      if (m.newTtl) kv.push(`new-ttl=${m.newTtl}`);
+      if (m.logPrefix) kv.push(`log-prefix="${m.logPrefix}"`);
+      if (m.passthrough !== undefined) kv.push(`passthrough=${m.passthrough ? 'yes' : 'no'}`);
+      out += kv.join(' ') + '\n\n';
+    });
+    return out.trimEnd() + '\n';
+  }
+
+  private static printFirewallMangleStats(config: RouterOsDeviceConfig): string {
+    const rules = config.firewall.mangleRules || [];
+    if (rules.length === 0) return 'Flags: X - disabled, I - invalid; D - dynamic\n';
+    let out = `Flags: X - disabled, I - invalid; D - dynamic\n`;
+    out += ` #    CHAIN          ACTION                            BYTES         PACKETS\n`;
+    rules.forEach((m, idx) => {
+      const flag = `${m.disabled ? 'X' : ' '}${m.invalid ? 'I' : ' '}${m.dynamic ? 'D' : ' '}`;
+      const comment = m.comment ? `;;; ${m.comment}\n` : '';
+      if (comment) out += ` ${String(idx).padStart(2)}  ${comment}`;
+      out += ` ${String(idx).padStart(2)} ${flag} ${m.chain.padEnd(14)} ${m.action.padEnd(28)} ${String(m.bytes || 0).padStart(10)} ${String(m.packets || 0).padStart(15)}\n`;
+    });
+    return out;
+  }
+
+  private static printAddressLists(config: RouterOsDeviceConfig): string {
+    const lists = config.firewall.addressLists || [];
+    if (lists.length === 0) return 'No address list entries configured.';
+    let out = `Flags: X - disabled, D - dynamic\n`;
+    out += ` #   LIST                 ADDRESS                   CREATION-TIME        TIMEOUT\n`;
+    lists.forEach((a, idx) => {
+      const flag = `${a.disabled ? 'X' : ' '}${a.dynamic ? 'D' : ' '}`;
+      const comment = a.comment ? `;;; ${a.comment}\n` : '';
+      out += `${comment}${flag} ${String(idx).padEnd(3)} ${a.list.padEnd(20)} ${a.address.padEnd(25)} ${(a.creationTime || '-').slice(0, 19).padEnd(20)} ${a.timeout || 'none'}\n`;
+    });
+    return out;
+  }
+
+  private static printConnections(config: RouterOsDeviceConfig): string {
+    const conns = config.connectionTracking || [];
+    if (conns.length === 0) return 'No active tracked connections.';
+    let out = `Flags: E - expected, S - seen-reply, A - assured, C - confirmed\n`;
+    out += ` #    PROTOCOL SRC-ADDRESS           DST-ADDRESS           TCP-STATE   CONNECTION-MARK   ROUTING-MARK\n`;
+    conns.forEach((c, idx) => {
+      const src = c.srcPort ? `${c.srcAddress}:${c.srcPort}` : c.srcAddress;
+      const dst = c.dstPort ? `${c.dstAddress}:${c.dstPort}` : c.dstAddress;
+      out += ` ${String(idx).padEnd(4)} ${c.protocol.padEnd(8)} ${src.padEnd(21)} ${dst.padEnd(21)} ${c.connectionState.padEnd(11)} ${(c.connectionMark || 'no-mark').padEnd(17)} ${c.routingMark || 'main'}\n`;
+    });
+    return out;
+  }
+
   private static printQueues(config: RouterOsDeviceConfig): string {
     if (config.queues.length === 0) return 'No simple queues configured.';
     let out = `Flags: X - disabled\n`;
-    out += ` #   NAME            TARGET             MAX-LIMIT\n`;
+    out += ` #   NAME            TARGET             MAX-LIMIT    PACKET-MARKS\n`;
     config.queues.forEach((q, idx) => {
       const flag = q.disabled ? 'X ' : '  ';
       const up = (q.maxLimitUploadBps / 1_000_000).toFixed(0) + 'M';
       const down = (q.maxLimitDownloadBps / 1_000_000).toFixed(0) + 'M';
-      out += `${flag}${String(idx).padEnd(3)} ${q.name.padEnd(15)} ${q.target.padEnd(18)} ${up}/${down}\n`;
+      out += `${flag}${String(idx).padEnd(3)} ${q.name.padEnd(15)} ${q.target.padEnd(18)} ${(up + '/' + down).padEnd(12)} ${q.packetMarks || ''}\n`;
+    });
+    return out;
+  }
+
+  private static printQueueTree(config: RouterOsDeviceConfig): string {
+    const qts = config.queueTree || [];
+    if (qts.length === 0) return 'No queue tree entries configured.';
+    let out = `Flags: X - disabled, I - invalid\n`;
+    out += ` #   NAME                PARENT          PACKET-MARK         MAX-LIMIT   PRIORITY\n`;
+    qts.forEach((q, idx) => {
+      const flag = q.disabled ? 'X ' : '  ';
+      const limitStr = (q.maxLimitBps / 1_000_000).toFixed(0) + 'M';
+      out += `${flag}${String(idx).padEnd(3)} ${q.name.padEnd(19)} ${q.parent.padEnd(15)} ${(q.packetMark || '').padEnd(19)} ${limitStr.padEnd(11)} ${q.priority}\n`;
     });
     return out;
   }
@@ -895,17 +1399,22 @@ export class RouterOsCliEngine {
   Navigation:
     ..          Go up one context level
     /           Go to root menu
-    <menu>      Navigate to submenu (e.g. interface, ip address, ip route)
+    <menu>      Navigate to submenu (e.g. interface, ip address, ip firewall mangle, routing table)
 
   Commands:
-    print       Print current table entries (short: pr)
-    add         Add a new entry with key=val parameters
-    set         Update an existing entry by number (e.g. set 0 disabled=yes)
-    remove      Remove an existing entry by number (short: rm)
-    enable      Enable entry (e.g. enable 0)
-    disable     Disable entry (e.g. disable 0)
-    export      Export full configuration in .rsc script format
-    clear       Clear screen output
+    print              Print current table entries (short: pr)
+    print detail       Print detailed rules (in /ip firewall mangle)
+    print stats        Print packet & byte counters (in /ip firewall mangle)
+    add                Add a new entry with key=val parameters
+    set                Update an existing entry by number (e.g. set 0 disabled=yes)
+    remove             Remove an existing entry by number (short: rm)
+    enable             Enable entry (e.g. enable 0)
+    disable            Disable entry (e.g. disable 0)
+    move               Reorder rule (e.g. move 2 0)
+    reset-counters     Reset counters for rule (e.g. reset-counters 0)
+    reset-counters-all Reset counters for all rules
+    export             Export full configuration in .rsc script format
+    clear              Clear screen output
 
   Diagnostic Tools:
     ping <ip>            Simulate ICMP ping packets
@@ -924,6 +1433,7 @@ export class RouterOsCliEngine {
     const rootKeywords = [
       'interface',
       'ip',
+      'routing',
       'queue',
       'system',
       'tool',
@@ -936,6 +1446,9 @@ export class RouterOsCliEngine {
       'remove',
       'enable',
       'disable',
+      'move',
+      'reset-counters',
+      'reset-counters-all',
       'clear',
       'help',
     ];
@@ -952,16 +1465,53 @@ export class RouterOsCliEngine {
     }
 
     if (contextStr === 'ip route' && tokens.includes('add')) {
-      const candidates = ['dst-address=', 'gateway=', 'distance=', 'comment='];
+      const candidates = ['dst-address=', 'gateway=', 'distance=', 'routing-table=', 'routing-mark=', 'comment='];
+      return candidates.filter((c) => c.startsWith(lastToken.toLowerCase()));
+    }
+
+    if (contextStr === 'ip firewall mangle' && (tokens.includes('add') || tokens.includes('set'))) {
+      const candidates = [
+        'chain=',
+        'action=',
+        'src-address=',
+        'dst-address=',
+        'protocol=',
+        'src-port=',
+        'dst-port=',
+        'in-interface=',
+        'out-interface=',
+        'in-interface-list=',
+        'out-interface-list=',
+        'src-address-list=',
+        'dst-address-list=',
+        'connection-state=',
+        'connection-mark=',
+        'packet-mark=',
+        'routing-mark=',
+        'per-connection-classifier=',
+        'new-connection-mark=',
+        'new-packet-mark=',
+        'new-routing-mark=',
+        'address-list=',
+        'address-list-timeout=',
+        'new-dscp=',
+        'new-mss=',
+        'new-ttl=',
+        'passthrough=',
+        'comment=',
+        'disabled=',
+      ];
       return candidates.filter((c) => c.startsWith(lastToken.toLowerCase()));
     }
 
     // Interface names autocompletion
-    if (lastToken.startsWith('interface=')) {
-      const prefix = lastToken.slice('interface='.length);
+    if (lastToken.startsWith('interface=') || lastToken.startsWith('in-interface=') || lastToken.startsWith('out-interface=')) {
+      const eqIdx = lastToken.indexOf('=');
+      const keyPrefix = lastToken.slice(0, eqIdx + 1);
+      const valPrefix = lastToken.slice(eqIdx + 1);
       return device.interfaces
-        .filter((i) => i.name.toLowerCase().startsWith(prefix.toLowerCase()))
-        .map((i) => `interface=${i.name}`);
+        .filter((i) => i.name.toLowerCase().startsWith(valPrefix.toLowerCase()))
+        .map((i) => `${keyPrefix}${i.name}`);
     }
 
     return [];
